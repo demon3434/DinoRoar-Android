@@ -1,4 +1,4 @@
-![DinoRoar App Icon](icon.png)
+![DinoRoar App Icon](./icon.png)
 
 # 🦕 DinoRoar Android - 恐龙手账移动客户端
 
