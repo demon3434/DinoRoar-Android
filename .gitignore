@@ -1,0 +1,68 @@
+# ===================================================================
+# DinoRoar Android - Git Ignore Specification
+# ===================================================================
+
+# 1. 内部文档与设计规范 (Documentation & Private Internal Specs)
+docs/
+
+# 2. 开发过程中的记录存档文件与素材 (Archives & Raw Assets)
+*.bak
+*.bak.*
+*.tmp
+*.temp
+
+# 3. 开发中的工具脚本 (Dev Utility Scripts)
+*.sh
+*.bat
+*.ps1
+!gradlew
+!gradlew.bat
+
+# 4. 本地 AI Agent 目录与 Kotlin 缓存 (Agent, OpenSpec & Kotlin Caches)
+.agent/
+.agents/
+openspec/
+.kotlin/
+.history/
+
+# 5. Built application files & Generated Code
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+/bin/
+/gen/
+/out/
+/build/
+app/build/
+*/build/
+
+# 6. Gradle files & Local configuration
+.gradle/
+build/
+local.properties
+
+# 7. Android Studio / IntelliJ IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 8. Keystores & Signing Keys
+*.keystore
+*.jks
+*.pepk
+
+# 9. Log files
+*.log
+*.out
+
+# 10. OS & Temporary files
+.DS_Store
+Thumbs.db
+uploads/

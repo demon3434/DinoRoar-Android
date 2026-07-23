@@ -1,0 +1,123 @@
+[
+  {
+    "id": 1,
+    "legacyKey": "Triceratops",
+    "name": "快乐三角龙",
+    "moodLabel": "😊 开心",
+    "moodTip": "快乐是会传染的，今天也要开心哦！",
+    "imageUrl": "mood_triceratops.png",
+    "moodScore": 10,
+    "sortOrder": 1,
+    "isActive": 1
+  },
+  {
+    "id": 2,
+    "legacyKey": "Pterodactyl_happy",
+    "name": "冲天翼手龙",
+    "moodLabel": "🤩 兴奋",
+    "moodTip": "把快乐写进日记，让它飞得更高吧！",
+    "imageUrl": "mood_pterodactyl_happy.png",
+    "moodScore": 9,
+    "sortOrder": 2,
+    "isActive": 1
+  },
+  {
+    "id": 3,
+    "legacyKey": "T-Rex_proud",
+    "name": "挺胸霸王龙",
+    "moodLabel": "😎 得意",
+    "moodTip": "你太棒了！今天也是值得自豪的一天！",
+    "imageUrl": "mood_t_rex_proud.png",
+    "moodScore": 8,
+    "sortOrder": 3,
+    "isActive": 1
+  },
+  {
+    "id": 4,
+    "legacyKey": "Brachiosaurus",
+    "name": "大眼睛雷龙",
+    "moodLabel": "🌟 期待",
+    "moodTip": "未来闪闪发光，让我们一起期待明天吧！",
+    "imageUrl": "mood_brachiosaurus.png",
+    "moodScore": 7,
+    "sortOrder": 4,
+    "isActive": 1
+  },
+  {
+    "id": 5,
+    "legacyKey": "Stegosaurus",
+    "name": "呆呆剑龙",
+    "moodLabel": "😮 惊讶",
+    "moodTip": "哇，今天发生了意想不到的奇妙事情呢！",
+    "imageUrl": "mood_stegosaurus.png",
+    "moodScore": 6,
+    "sortOrder": 5,
+    "isActive": 1
+  },
+  {
+    "id": 6,
+    "legacyKey": "Velociraptor",
+    "name": "佛系迅猛龙",
+    "moodLabel": "😐 一般",
+    "moodTip": "平静的一天也很美好，休息一下吧！",
+    "imageUrl": "mood_velociraptor.png",
+    "moodScore": 5,
+    "sortOrder": 6,
+    "isActive": 1
+  },
+  {
+    "id": 7,
+    "legacyKey": "Ankylosaurus_scared",
+    "name": "缩壳甲龙",
+    "moodLabel": "😰 紧张",
+    "moodTip": "别怕，缩进壳里也是保护自己的好办法，你很安全！",
+    "imageUrl": "mood_ankylosaurus_scared.png",
+    "moodScore": 4,
+    "sortOrder": 7,
+    "isActive": 1
+  },
+  {
+    "id": 8,
+    "legacyKey": "Pachycephalosaurus",
+    "name": "叹气肿头龙",
+    "moodLabel": "🍃 遗憾",
+    "moodTip": "没关系，每一次小小的遗憾都是成长的足迹。",
+    "imageUrl": "mood_pachycephalosaurus.png",
+    "moodScore": 3,
+    "sortOrder": 8,
+    "isActive": 1
+  },
+  {
+    "id": 9,
+    "legacyKey": "Parasaurolophus_regret",
+    "name": "耷拉角副栉龙",
+    "moodLabel": "😣 后悔",
+    "moodTip": "别太自责，过去的事就让它过去，下次会更好！",
+    "imageUrl": "mood_parasaurolophus_regret.png",
+    "moodScore": 2,
+    "sortOrder": 9,
+    "isActive": 1
+  },
+  {
+    "id": 10,
+    "legacyKey": "Spinosaurus",
+    "name": "细雨棘龙",
+    "moodLabel": "😭 伤心",
+    "moodTip": "伤心的时候可以哭出来，雨过天晴总会放晴的。",
+    "imageUrl": "mood_spinosaurus.png",
+    "moodScore": 2,
+    "sortOrder": 10,
+    "isActive": 1
+  },
+  {
+    "id": 11,
+    "legacyKey": "Dilophosaurus",
+    "name": "怒火双脊龙",
+    "moodLabel": "😡 愤怒",
+    "moodTip": "深呼吸，把怒火倾诉给恐龙，它会默默倾听你的委屈。",
+    "imageUrl": "mood_dilophosaurus.png",
+    "moodScore": 1,
+    "sortOrder": 11,
+    "isActive": 1
+  }
+]
