@@ -1,4 +1,4 @@
-![DinoRoar App Icon](./icon.png)
+![DinoRoar App Icon](./app/src/main/res/drawable/sticker_fallback_logo.png)
 
 # 🦕 DinoRoar Android - 恐龙手账移动客户端
 
