@@ -1,8 +1,8 @@
-![DinoRoar App Icon](./app/src/main/res/drawable/sticker_fallback_logo.png)
-
 # 🦕 DinoRoar Android - 恐龙手账移动客户端
 
 DinoRoar Android 端是基于 Jetpack Compose 构建的现代手账与心情日记客户端。提供极具沉浸感的手账绘图排版、语音输入转文字、离线存储同步及局域网服务器自动发现功能。
+
+![DinoRoar App Icon](./app/src/main/res/drawable/sticker_fallback_logo.png)
 
 ---
 
