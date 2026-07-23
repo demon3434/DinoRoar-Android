@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="icon.png" width="256" height="256" alt="DinoRoar Icon">
-</p>
+![DinoRoar App Icon](icon.png)
 
 # 🦕 DinoRoar Android - 恐龙手账移动客户端
 
