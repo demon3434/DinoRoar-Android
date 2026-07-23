@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon.png" width="256" height="256" alt="DinoRoar Icon">
+  <img src="./icon.png" width="256" height="256" alt="DinoRoar Icon">
 </p>
 
 # 🦕 DinoRoar Android - 恐龙手账移动客户端
