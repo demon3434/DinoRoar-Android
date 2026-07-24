@@ -23,4 +23,10 @@ object StickerConfigCache {
             cachedStickers.isEmpty()
         }
     }
+
+    fun clear() {
+        synchronized(cachedStickers) {
+            cachedStickers.clear()
+        }
+    }
 }

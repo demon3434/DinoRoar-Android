@@ -73,18 +73,29 @@ class AuthInterceptor @Inject constructor(
                 val responseBody = response.peekBody(1024 * 1024)
                 val bodyString = responseBody.string()
                 
+                if (bodyString.contains("lock_pattern")) {
+                    val patternMatcher = java.util.regex.Pattern.compile("\"lock_pattern\"\\s*:\\s*\"([^\"]+)\"")
+                    val matcher = patternMatcher.matcher(bodyString)
+                    if (matcher.find()) {
+                        val remotePattern = matcher.group(1)
+                        if (!remotePattern.isNullOrBlank() && remotePattern != securePrefs.lockPattern) {
+                            Log.i(TAG, "AuthInterceptor detected remote lock_pattern update: $remotePattern (was ${securePrefs.lockPattern})")
+                            securePrefs.lockPattern = remotePattern
+                            securePrefs.lockVersion = securePrefs.lockVersion + 1
+                        }
+                    }
+                }
+
                 if (bodyString.contains("lock_reset_flag") && bodyString.contains("default_requested")) {
                     Log.w(TAG, "Detected lock_reset_flag = default_requested from server!")
                     
-                    // Trigger local reset
-                    securePrefs.resetLockToDefault()
-                    
-                    // Send reset confirmation back to server asynchronously
+                    // Confirm lock reset back to server to clear the reset flag while keeping the new pattern
                     val serverUrl = securePrefs.serverUrl
                     val token = securePrefs.token
+                    val currentPattern = securePrefs.lockPattern
                     if (serverUrl != null && token != null) {
                         coroutineScope.launch {
-                            confirmLockReset(serverUrl, token)
+                            confirmLockReset(serverUrl, token, currentPattern)
                         }
                     }
                 }
@@ -96,9 +107,9 @@ class AuthInterceptor @Inject constructor(
         return response
     }
 
-    private fun confirmLockReset(serverUrl: String, token: String) {
+    private fun confirmLockReset(serverUrl: String, token: String, currentPattern: String) {
         val client = okHttpClientProvider.get()
-        val jsonPayload = "{\"lock_pattern\":\"1,2,3\"}"
+        val jsonPayload = "{\"lock_pattern\":\"$currentPattern\"}"
         val requestBody = jsonPayload.toRequestBody("application/json; charset=utf-8".toMediaType())
         
         val url = "${serverUrl.removeSuffix("/")}/api/auth/lock"

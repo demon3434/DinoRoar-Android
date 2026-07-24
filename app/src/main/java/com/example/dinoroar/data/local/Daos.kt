@@ -9,28 +9,28 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LogDao {
-    @Query("SELECT * FROM logs WHERE isDeleted = 0 ORDER BY incidentDate DESC")
-    fun getAllActiveLogsFlow(): Flow<List<LogEntity>>
+    @Query("SELECT * FROM logs WHERE (userId = :userId OR userId = '') AND isDeleted = 0 ORDER BY incidentDate DESC")
+    fun getAllActiveLogsFlow(userId: String): Flow<List<LogEntity>>
 
     @androidx.room.Transaction
-    @Query("SELECT * FROM logs WHERE isDeleted = 0 ORDER BY incidentDate DESC")
-    fun getAllActiveLogsWithConfigFlow(): Flow<List<LogWithConfig>>
+    @Query("SELECT * FROM logs WHERE (userId = :userId OR userId = '') AND isDeleted = 0 ORDER BY incidentDate DESC")
+    fun getAllActiveLogsWithConfigFlow(userId: String): Flow<List<LogWithConfig>>
 
     @androidx.room.Transaction
     @Query("SELECT * FROM logs WHERE uuid = :uuid LIMIT 1")
     suspend fun getLogWithConfigByUuid(uuid: String): LogWithConfig?
 
-    @Query("SELECT * FROM logs WHERE isDeleted = 0 AND (title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%') ORDER BY incidentDate DESC")
-    fun searchActiveLogsFlow(query: String): Flow<List<LogEntity>>
+    @Query("SELECT * FROM logs WHERE (userId = :userId OR userId = '') AND isDeleted = 0 AND (title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%') ORDER BY incidentDate DESC")
+    fun searchActiveLogsFlow(userId: String, query: String): Flow<List<LogEntity>>
 
-    @Query("SELECT * FROM logs WHERE isDeleted = 0 ORDER BY incidentDate DESC")
-    suspend fun getAllActiveLogs(): List<LogEntity>
+    @Query("SELECT * FROM logs WHERE (userId = :userId OR userId = '') AND isDeleted = 0 ORDER BY incidentDate DESC")
+    suspend fun getAllActiveLogs(userId: String): List<LogEntity>
 
     @Query("SELECT * FROM logs WHERE uuid = :uuid LIMIT 1")
     suspend fun getLogByUuid(uuid: String): LogEntity?
 
-    @Query("SELECT * FROM logs WHERE isSynced = 0")
-    suspend fun getUnsyncedLogs(): List<LogEntity>
+    @Query("SELECT * FROM logs WHERE (userId = :userId OR userId = '') AND isSynced = 0")
+    suspend fun getUnsyncedLogs(userId: String): List<LogEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(log: LogEntity)
@@ -53,8 +53,8 @@ interface LogDao {
 
 @Dao
 interface AttachmentDao {
-    @Query("SELECT * FROM attachments WHERE isDeleted = 0")
-    fun getAllActiveAttachmentsFlow(): Flow<List<AttachmentEntity>>
+    @Query("SELECT * FROM attachments WHERE (userId = :userId OR userId = '') AND isDeleted = 0")
+    fun getAllActiveAttachmentsFlow(userId: String): Flow<List<AttachmentEntity>>
 
     @Query("SELECT * FROM attachments WHERE logUuid = :logUuid AND isDeleted = 0")
     fun getAttachmentsForLogFlow(logUuid: String): Flow<List<AttachmentEntity>>
@@ -65,14 +65,14 @@ interface AttachmentDao {
     @Query("SELECT * FROM attachments WHERE uuid = :uuid LIMIT 1")
     suspend fun getAttachmentByUuid(uuid: String): AttachmentEntity?
 
-    @Query("SELECT * FROM attachments WHERE isSynced = 0 AND isDeleted = 0")
-    suspend fun getUnsyncedAttachments(): List<AttachmentEntity>
+    @Query("SELECT * FROM attachments WHERE (userId = :userId OR userId = '') AND isSynced = 0 AND isDeleted = 0")
+    suspend fun getUnsyncedAttachments(userId: String): List<AttachmentEntity>
 
-    @Query("SELECT * FROM attachments WHERE isSynced = 1 AND isDeleted = 0")
-    suspend fun getAllSyncedAttachments(): List<AttachmentEntity>
+    @Query("SELECT * FROM attachments WHERE (userId = :userId OR userId = '') AND isSynced = 1 AND isDeleted = 0")
+    suspend fun getAllSyncedAttachments(userId: String): List<AttachmentEntity>
 
-    @Query("SELECT * FROM attachments WHERE isDeleted = 1 AND isSynced = 0")
-    suspend fun getPendingDeleteAttachments(): List<AttachmentEntity>
+    @Query("SELECT * FROM attachments WHERE (userId = :userId OR userId = '') AND isDeleted = 1 AND isSynced = 0")
+    suspend fun getPendingDeleteAttachments(userId: String): List<AttachmentEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(attachment: AttachmentEntity)
@@ -101,20 +101,20 @@ interface AttachmentDao {
 
 @Dao
 interface PersonDao {
-    @Query("SELECT * FROM persons WHERE isDeleted = 0 AND isTemporary = 0 ORDER BY sortOrder ASC, name ASC")
-    fun getAllActivePersonsFlow(): Flow<List<PersonEntity>>
+    @Query("SELECT * FROM persons WHERE (userId = :userId OR userId = '') AND isDeleted = 0 AND isTemporary = 0 ORDER BY sortOrder ASC, name ASC")
+    fun getAllActivePersonsFlow(userId: String): Flow<List<PersonEntity>>
 
-    @Query("SELECT * FROM persons WHERE isDeleted = 0 AND isTemporary = 0 ORDER BY sortOrder ASC, name ASC")
-    suspend fun getAllActivePersons(): List<PersonEntity>
+    @Query("SELECT * FROM persons WHERE (userId = :userId OR userId = '') AND isDeleted = 0 AND isTemporary = 0 ORDER BY sortOrder ASC, name ASC")
+    suspend fun getAllActivePersons(userId: String): List<PersonEntity>
 
-    @Query("SELECT * FROM persons WHERE isDeleted = 0 ORDER BY sortOrder ASC, name ASC")
-    suspend fun getAllPersonsWithTemporary(): List<PersonEntity>
+    @Query("SELECT * FROM persons WHERE (userId = :userId OR userId = '') AND isDeleted = 0 ORDER BY sortOrder ASC, name ASC")
+    suspend fun getAllPersonsWithTemporary(userId: String): List<PersonEntity>
 
     @Query("SELECT * FROM persons WHERE uuid = :uuid LIMIT 1")
     suspend fun getPersonByUuid(uuid: String): PersonEntity?
 
-    @Query("SELECT * FROM persons WHERE isSynced = 0")
-    suspend fun getUnsyncedPersons(): List<PersonEntity>
+    @Query("SELECT * FROM persons WHERE (userId = :userId OR userId = '') AND isSynced = 0")
+    suspend fun getUnsyncedPersons(userId: String): List<PersonEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(person: PersonEntity)
@@ -134,21 +134,21 @@ interface PersonDao {
     @Query("UPDATE persons SET isSynced = 1 WHERE uuid = :uuid")
     suspend fun markSynced(uuid: String)
 
-    @Query("SELECT * FROM persons WHERE isDeleted = 1 AND isTemporary = 0 ORDER BY name ASC")
-    fun getDeletedPersonsFlow(): Flow<List<PersonEntity>>
+    @Query("SELECT * FROM persons WHERE (userId = :userId OR userId = '') AND isDeleted = 1 AND isTemporary = 0 ORDER BY name ASC")
+    fun getDeletedPersonsFlow(userId: String): Flow<List<PersonEntity>>
 
-    @Query("SELECT * FROM person_categories WHERE isDeleted = 1 ORDER BY sortOrder ASC")
-    fun getDeletedCategoriesFlow(): Flow<List<PersonCategoryEntity>>
+    @Query("SELECT * FROM person_categories WHERE (userId = :userId OR userId = '') AND isDeleted = 1 ORDER BY sortOrder ASC")
+    fun getDeletedCategoriesFlow(userId: String): Flow<List<PersonCategoryEntity>>
 
     // === Category Operations ===
-    @Query("SELECT * FROM person_categories WHERE isDeleted = 0 ORDER BY sortOrder ASC")
-    fun getAllCategoriesFlow(): Flow<List<PersonCategoryEntity>>
+    @Query("SELECT * FROM person_categories WHERE (userId = :userId OR userId = '') AND isDeleted = 0 ORDER BY sortOrder ASC")
+    fun getAllCategoriesFlow(userId: String): Flow<List<PersonCategoryEntity>>
 
-    @Query("SELECT * FROM person_categories WHERE isDeleted = 0 ORDER BY sortOrder ASC")
-    suspend fun getAllCategories(): List<PersonCategoryEntity>
+    @Query("SELECT * FROM person_categories WHERE (userId = :userId OR userId = '') AND isDeleted = 0 ORDER BY sortOrder ASC")
+    suspend fun getAllCategories(userId: String): List<PersonCategoryEntity>
 
-    @Query("SELECT * FROM person_categories")
-    suspend fun getAllCategoriesIncludingDeleted(): List<PersonCategoryEntity>
+    @Query("SELECT * FROM person_categories WHERE (userId = :userId OR userId = '')")
+    suspend fun getAllCategoriesIncludingDeleted(userId: String): List<PersonCategoryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateCategory(category: PersonCategoryEntity)
@@ -173,18 +173,18 @@ interface PersonDao {
         SELECT p.* FROM persons p
         INNER JOIN log_person_cross_ref ref ON p.uuid = ref.personUuid
         INNER JOIN logs l ON ref.logUuid = l.uuid
-        WHERE p.isDeleted = 0 AND p.isTemporary = 0 AND l.isDeleted = 0
+        WHERE (p.userId = :userId OR p.userId = '') AND p.isDeleted = 0 AND p.isTemporary = 0 AND l.isDeleted = 0
         GROUP BY p.uuid
         ORDER BY MAX(l.createdAt) DESC
         LIMIT 5
     """)
-    suspend fun getRecentPersons(): List<PersonEntity>
+    suspend fun getRecentPersons(userId: String): List<PersonEntity>
 }
 
 @Dao
 interface LogPersonDao {
-    @Query("SELECT * FROM log_person_cross_ref")
-    fun getAllCrossRefsFlow(): Flow<List<LogPersonCrossRef>>
+    @Query("SELECT * FROM log_person_cross_ref WHERE userId = :userId OR userId = ''")
+    fun getAllCrossRefsFlow(userId: String): Flow<List<LogPersonCrossRef>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCrossRef(crossRef: LogPersonCrossRef)

@@ -24,6 +24,9 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.BackoffPolicy
 import androidx.work.WorkRequest
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import okhttp3.Request
 
 sealed interface SyncState {
     object Idle : SyncState
@@ -41,12 +44,43 @@ class SyncManager @Inject constructor(
     private val relationshipSyncer: RelationshipSyncer,
     private val diaryLogSyncer: DiaryLogSyncer,
     private val attachmentFileSyncer: AttachmentFileSyncer,
-    private val stickerAssetSyncer: StickerAssetSyncer
+    private val stickerAssetSyncer: StickerAssetSyncer,
+    private val okHttpClient: okhttp3.OkHttpClient
 ) {
     private val TAG = "SyncManager"
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    init {
+        registerNetworkCallback()
+    }
+
+    private fun registerNetworkCallback() {
+        try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val request = android.net.NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+
+            cm.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    Log.i(TAG, "Network restored (onAvailable). Triggering auto-sync for lock pattern and user data...")
+                    coroutineScope.launch {
+                        try {
+                            syncUserProfile()
+                            sync()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Auto-sync on network restored failed: ${e.message}")
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register network callback: ${e.message}")
+        }
+    }
 
     private fun isWifiConnected(): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -85,6 +119,74 @@ class SyncManager @Inject constructor(
         }
     }
 
+    suspend fun syncUserProfile(): Boolean = withContext(Dispatchers.IO) {
+        val token = securePrefs.token ?: return@withContext false
+        
+        val primaryUrl = securePrefs.serverUrl
+        val intranetUrl = securePrefs.intranetUrl
+        val extranetUrl = securePrefs.extranetUrl
+
+        val urlsToTry = mutableListOf<String>()
+        primaryUrl?.takeIf { it.isNotBlank() }?.let { urlsToTry.add(it) }
+        extranetUrl?.takeIf { it.isNotBlank() && !urlsToTry.contains(it) }?.let { urlsToTry.add(it) }
+        intranetUrl?.takeIf { it.isNotBlank() && !urlsToTry.contains(it) }?.let { urlsToTry.add(it) }
+
+        if (urlsToTry.isEmpty()) return@withContext false
+
+        val shortClient = okHttpClient.newBuilder()
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(3, TimeUnit.SECONDS)
+            .build()
+
+        for (baseUrl in urlsToTry) {
+            try {
+                val cleanUrl = baseUrl.removeSuffix("/")
+                val request = Request.Builder()
+                    .url("$cleanUrl/api/auth/me")
+                    .header("Authorization", "Bearer $token")
+                    .build()
+
+                shortClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyStr = response.body?.string() ?: ""
+                        if (bodyStr.contains("lock_pattern")) {
+                            val patternMatcher = java.util.regex.Pattern.compile("\"lock_pattern\"\\s*:\\s*\"([^\"]+)\"")
+                            val matcher = patternMatcher.matcher(bodyStr)
+                            if (matcher.find()) {
+                                val remotePattern = matcher.group(1)
+                                if (!remotePattern.isNullOrBlank()) {
+                                    if (securePrefs.serverUrl != baseUrl) {
+                                        Log.i(TAG, "Switching active serverUrl to working URL: $baseUrl")
+                                        securePrefs.serverUrl = baseUrl
+                                    }
+                                    if (remotePattern != securePrefs.lockPattern) {
+                                        Log.i(TAG, "Lock pattern updated remotely: $remotePattern (was ${securePrefs.lockPattern})")
+                                        securePrefs.lockPattern = remotePattern
+                                        securePrefs.lockVersion = securePrefs.lockVersion + 1
+                                    }
+
+                                    if (bodyStr.contains("lock_reset_flag") && bodyStr.contains("default_requested")) {
+                                        try {
+                                            apiService.updateLockPattern(com.example.dinoroar.network.UserUpdateLock(lock_pattern = securePrefs.lockPattern))
+                                            Log.i(TAG, "Confirmed lock reset to server. lock_reset_flag cleared.")
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "Failed to confirm lock reset to server: ${e.message}")
+                                        }
+                                    }
+
+                                    return@withContext (remotePattern != securePrefs.lockPattern)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "syncUserProfile fast probe failed for $baseUrl: ${e.message}")
+            }
+        }
+        return@withContext false
+    }
+
     suspend fun sync(isManual: Boolean = false): SyncState = withContext(Dispatchers.IO) {
         if (securePrefs.token == null) {
             val err = "Cannot sync: User not authenticated."
@@ -101,7 +203,8 @@ class SyncManager @Inject constructor(
         _syncState.value = SyncState.Syncing
 
         try {
-            // 阶段0：配置与贴纸拉取
+            // 阶段0：用户个人信息与解锁序列拉取，配置与贴纸拉取
+            syncUserProfile()
             syncDinoConfig()
             stickerAssetSyncer.syncStickerInventoryDown()
 

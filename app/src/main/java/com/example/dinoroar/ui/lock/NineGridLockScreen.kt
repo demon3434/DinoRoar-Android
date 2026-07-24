@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.activity.compose.BackHandler
@@ -43,6 +44,7 @@ data class DinoInfo(
 @Composable
 fun NineGridLockScreen(
     correctPattern: String, // e.g. "2,2,4"
+    syncManager: com.example.dinoroar.data.sync.SyncManager? = null,
     onUnlockSuccess: () -> Unit,
     onBackToGame: () -> Unit,
     modifier: Modifier = Modifier
@@ -70,6 +72,10 @@ fun NineGridLockScreen(
     val neonRed = Color(0xFFFF1744) // 警告深红
     val neonAmber = Color(0xFFFFB300) // 霓虹琥珀金
 
+    val observedPattern by securePrefs.lockPatternFlow.collectAsState(initial = "")
+    val activePattern = observedPattern.ifBlank { correctPattern }
+    var isPatternUpdatedToastVisible by remember { mutableStateOf(false) }
+
     // 服务端定义的 5 种形态卡通恐龙与数字 1~5 一一映射
     val dinoList = remember {
         listOf(
@@ -87,34 +93,42 @@ fun NineGridLockScreen(
     // 九宫格生成洗牌算法：先随机生成 4 个恐龙，再与 5 个必选恐龙合并，最后随机彻底打乱
     fun shuffleGrid() {
         shuffledGrid.clear()
-        // 1. 先随机生成 4 个恐龙 (1~5 范围)
         val random4 = List(4) { kotlin.random.Random.nextInt(1, 6) }
-        // 2. 准备 5 个必选恐龙
         val required5 = listOf(1, 2, 3, 4, 5)
-        // 3. 合并并随机打乱
         val combined = (random4 + required5).shuffled()
         shuffledGrid.addAll(combined)
     }
 
-    // 首次进入时执行洗牌
+    val coroutineScope = rememberCoroutineScope()
+
+    // 首次进入时执行洗牌与锁序列主动拉新校验
     LaunchedEffect(Unit) {
         shuffleGrid()
+        syncManager?.let { mgr ->
+            val isUpdated = mgr.syncUserProfile()
+            if (isUpdated) {
+                isPatternUpdatedToastVisible = true
+            }
+        }
     }
 
     // 分割解析云端下发的密码序列
-    val correctList = remember(correctPattern) {
-        correctPattern.split(",").mapNotNull { it.trim().toIntOrNull() }
+    val correctList = remember(activePattern) {
+        activePattern.split(",").mapNotNull { it.trim().toIntOrNull() }
     }
 
     // 记录用户已点击成功匹配的按键序列
     val inputSequence = remember { mutableStateListOf<Int>() }
     val displaySequence = remember { mutableStateListOf<Int>() }
     var isError by remember { mutableStateOf(false) }
-    var statusText by remember { mutableStateOf("依次点击正确的恐龙序列解锁基舱") }
+    var statusText by remember { mutableStateOf("解锁恐龙密码，进入秘密基地") }
 
     // 错误重置逻辑
     LaunchedEffect(isError) {
         if (isError) {
+            coroutineScope.launch {
+                syncManager?.syncUserProfile()
+            }
             delay(1000)
             inputSequence.clear()
             displaySequence.clear()

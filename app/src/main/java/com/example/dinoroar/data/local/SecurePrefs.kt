@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,58 +41,155 @@ class SecurePrefs @Inject constructor(
         set(value) = sharedPrefs.edit().putString(KEY_TOKEN, value).apply()
 
     var serverUrl: String?
-        get() = sharedPrefs.getString(KEY_SERVER_URL, null)
-        set(value) = sharedPrefs.edit().putString(KEY_SERVER_URL, value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) KEY_SERVER_URL else "${KEY_SERVER_URL}_$user"
+            return sharedPrefs.getString(key, null)
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) KEY_SERVER_URL else "${KEY_SERVER_URL}_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
 
     var intranetUrl: String?
-        get() = sharedPrefs.getString(KEY_INTRANET_URL, null)
-        set(value) = sharedPrefs.edit().putString(KEY_INTRANET_URL, value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) KEY_INTRANET_URL else "${KEY_INTRANET_URL}_$user"
+            return sharedPrefs.getString(key, null)
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) KEY_INTRANET_URL else "${KEY_INTRANET_URL}_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
 
     var extranetUrl: String?
-        get() = sharedPrefs.getString(KEY_EXTRANET_URL, null)
-        set(value) = sharedPrefs.edit().putString(KEY_EXTRANET_URL, value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) KEY_EXTRANET_URL else "${KEY_EXTRANET_URL}_$user"
+            return sharedPrefs.getString(key, null)
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) KEY_EXTRANET_URL else "${KEY_EXTRANET_URL}_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
+
+    private val _lockPatternFlow = kotlinx.coroutines.flow.MutableStateFlow(
+        run {
+            val user = sharedPrefs.getString("current_username", "") ?: ""
+            val key = if (user.isBlank()) KEY_LOCK_PATTERN else "${KEY_LOCK_PATTERN}_$user"
+            sharedPrefs.getString(key, DEFAULT_PATTERN) ?: DEFAULT_PATTERN
+        }
+    )
+    val lockPatternFlow: kotlinx.coroutines.flow.StateFlow<String> = _lockPatternFlow
 
     var lockPattern: String
-        get() = sharedPrefs.getString(KEY_LOCK_PATTERN, DEFAULT_PATTERN) ?: DEFAULT_PATTERN
-        set(value) = sharedPrefs.edit().putString(KEY_LOCK_PATTERN, value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) KEY_LOCK_PATTERN else "${KEY_LOCK_PATTERN}_$user"
+            return sharedPrefs.getString(key, DEFAULT_PATTERN) ?: DEFAULT_PATTERN
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) KEY_LOCK_PATTERN else "${KEY_LOCK_PATTERN}_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+            _lockPatternFlow.value = value
+        }
 
     var isCamouflageEnabled: Boolean
-        get() = sharedPrefs.getBoolean(KEY_IS_CAMOUFLAGE_ENABLED, true)
-        set(value) = sharedPrefs.edit().putBoolean(KEY_IS_CAMOUFLAGE_ENABLED, value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) KEY_IS_CAMOUFLAGE_ENABLED else "${KEY_IS_CAMOUFLAGE_ENABLED}_$user"
+            return sharedPrefs.getBoolean(key, true)
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) KEY_IS_CAMOUFLAGE_ENABLED else "${KEY_IS_CAMOUFLAGE_ENABLED}_$user"
+            sharedPrefs.edit().putBoolean(key, value).apply()
+        }
 
     var isWifiOnlyEnabled: Boolean
-        get() = sharedPrefs.getBoolean(KEY_IS_WIFI_ONLY, true)
-        set(value) = sharedPrefs.edit().putBoolean(KEY_IS_WIFI_ONLY, value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) KEY_IS_WIFI_ONLY else "${KEY_IS_WIFI_ONLY}_$user"
+            return sharedPrefs.getBoolean(key, true)
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) KEY_IS_WIFI_ONLY else "${KEY_IS_WIFI_ONLY}_$user"
+            sharedPrefs.edit().putBoolean(key, value).apply()
+        }
 
     @Volatile
     var isCameraActive: Boolean = false
 
     var currentThemeId: Int
-        get() = sharedPrefs.getInt("current_theme_id", 8)
-        set(value) = sharedPrefs.edit().putInt("current_theme_id", value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) "current_theme_id" else "current_theme_id_$user"
+            return sharedPrefs.getInt(key, 8)
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) "current_theme_id" else "current_theme_id_$user"
+            sharedPrefs.edit().putInt(key, value).apply()
+        }
 
     var globalVideoQuality: String
-        get() = sharedPrefs.getString("global_video_quality", "720p") ?: "720p"
-        set(value) = sharedPrefs.edit().putString("global_video_quality", value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) "global_video_quality" else "global_video_quality_$user"
+            return sharedPrefs.getString(key, "720p") ?: "720p"
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) "global_video_quality" else "global_video_quality_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
 
     @Volatile
     var isExternalActivityActive: Boolean = false
 
     var internalServerUrl: String
-        get() = sharedPrefs.getString("internal_server_url", "") ?: ""
-        set(value) = sharedPrefs.edit().putString("internal_server_url", value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) "internal_server_url" else "internal_server_url_$user"
+            return sharedPrefs.getString(key, "") ?: ""
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) "internal_server_url" else "internal_server_url_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
 
     var externalServerUrl: String
-        get() = sharedPrefs.getString("external_server_url", "") ?: ""
-        set(value) = sharedPrefs.edit().putString("external_server_url", value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) "external_server_url" else "external_server_url_$user"
+            return sharedPrefs.getString(key, "") ?: ""
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) "external_server_url" else "external_server_url_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
 
     var nickname: String
         get() = sharedPrefs.getString("nickname", "") ?: ""
         set(value) = sharedPrefs.edit().putString("nickname", value).apply()
 
+    private val _currentUserIdFlow = kotlinx.coroutines.flow.MutableStateFlow(username)
+    val currentUserIdFlow: kotlinx.coroutines.flow.StateFlow<String> = _currentUserIdFlow.asStateFlow()
+
     var username: String
         get() = sharedPrefs.getString("current_username", "") ?: ""
-        set(value) = sharedPrefs.edit().putString("current_username", value).apply()
+        set(value) {
+            sharedPrefs.edit().putString("current_username", value).apply()
+            _currentUserIdFlow.value = value
+            _lockPatternFlow.value = lockPattern
+        }
 
     var eggEnergy: Int
         get() {
@@ -122,8 +220,16 @@ class SecurePrefs @Inject constructor(
         set(value) = sharedPrefs.edit().putString("sticker_config_cache", value).apply()
 
     var unlockedDinos: String
-        get() = sharedPrefs.getString("unlocked_dinos", "T-Rex_proud,Triceratops,Pterodactyl_happy") ?: "T-Rex_proud,Triceratops,Pterodactyl_happy"
-        set(value) = sharedPrefs.edit().putString("unlocked_dinos", value).apply()
+        get() {
+            val user = username
+            val key = if (user.isBlank()) "unlocked_dinos" else "unlocked_dinos_$user"
+            return sharedPrefs.getString(key, "T-Rex_proud,Triceratops,Pterodactyl_happy") ?: "T-Rex_proud,Triceratops,Pterodactyl_happy"
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) "unlocked_dinos" else "unlocked_dinos_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
 
     var hasSyncedStickers: Boolean
         get() {
@@ -152,7 +258,23 @@ class SecurePrefs @Inject constructor(
 
     fun resetLockToDefault() {
         lockPattern = DEFAULT_PATTERN
+        lockVersion = 1
     }
+
+    var lockVersion: Int
+        get() {
+            val user = username
+            val key = if (user.isBlank()) "lock_version" else "lock_version_$user"
+            return sharedPrefs.getInt(key, 1)
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) "lock_version" else "lock_version_$user"
+            sharedPrefs.edit().putInt(key, value).apply()
+        }
+
+    val currentUserId: String
+        get() = username
 
     fun clear() {
         sharedPrefs.edit().clear().apply()

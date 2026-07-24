@@ -140,7 +140,7 @@ fun SettingsScreen(
                     title = {
                         Text(
                             text = when (targetState) {
-                                SettingMenuState.MAIN -> "安全基舱设置"
+                                SettingMenuState.MAIN -> "设置"
                                 SettingMenuState.DINO_LOCK -> "恐龙序列解锁设置"
                                 SettingMenuState.THEME_SELECT -> "主题颜色设置"
                                 SettingMenuState.SERVER_ADDRESS -> "服务器地址配置"

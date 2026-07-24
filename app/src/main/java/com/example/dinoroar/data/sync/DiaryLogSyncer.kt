@@ -16,30 +16,34 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.example.dinoroar.data.local.SecurePrefs
+
 @Singleton
 class DiaryLogSyncer @Inject constructor(
     private val logDao: LogDao,
     private val attachmentDao: AttachmentDao,
     private val logPersonDao: LogPersonDao,
-    private val apiService: DinoApiService
+    private val apiService: DinoApiService,
+    private val securePrefs: SecurePrefs
 ) {
     private val TAG = "DiaryLogSyncer"
 
     suspend fun syncLogs(isManual: Boolean): Set<String> = withContext(Dispatchers.IO) {
+        val userId = securePrefs.currentUserId
         // ==================== 阶段二：同步日志库 ====================
-        Log.i(TAG, "Syncing log database...")
-        val unsyncedLocal = logDao.getUnsyncedLogs()
+        Log.i(TAG, "Syncing log database for user $userId...")
+        val unsyncedLocal = logDao.getUnsyncedLogs(userId)
         
         // 健壮性自愈：在本地将老数据中由于版本迁移遗留的空 updatedAt 字段自动订正
         unsyncedLocal.forEach {
-            if (it.updatedAt.isBlank()) {
+            if (it.updatedAt.isBlank() || it.userId.isBlank()) {
                 val fallbackTime = if (it.incidentDate.isNotBlank()) it.incidentDate else java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).format(java.util.Date())
-                logDao.insertOrUpdate(it.copy(updatedAt = fallbackTime))
+                logDao.insertOrUpdate(it.copy(updatedAt = fallbackTime, userId = userId))
             }
         }
 
         // 重新从本地数据库加载已被自愈订正的数据以构成最新的同步 payload
-        val healedUnsyncedLocal = logDao.getUnsyncedLogs()
+        val healedUnsyncedLocal = logDao.getUnsyncedLogs(userId)
         
         val toSyncLogs = healedUnsyncedLocal.filter { 
             !it.isDeleted && (isManual || !it.isLocalOnly)
@@ -108,6 +112,7 @@ class DiaryLogSyncer @Inject constructor(
                 if (shouldOverwrite) {
                     val logEntity = LogEntity(
                         uuid = serverLog.uuid,
+                        userId = userId,
                         title = serverLog.title,
                         incidentDate = serverLog.incident_date,
                         moodDinoId = serverLog.mood_dino_id,
@@ -129,7 +134,7 @@ class DiaryLogSyncer @Inject constructor(
                     // 重新覆盖本地的日志-人物多对多关联
                     logPersonDao.deleteCrossRefsForLog(serverLog.uuid)
                     val refs = serverLog.person_uuids.map { personUuid ->
-                        LogPersonCrossRef(logUuid = serverLog.uuid, personUuid = personUuid)
+                        LogPersonCrossRef(logUuid = serverLog.uuid, personUuid = personUuid, userId = userId)
                     }
                     logPersonDao.insertCrossRefs(refs)
                 }
@@ -142,6 +147,7 @@ class DiaryLogSyncer @Inject constructor(
                     val downloadUrl = "api/attachments/download/${serverAtt.uuid}"
                     val attEntity = AttachmentEntity(
                         uuid = serverAtt.uuid,
+                        userId = userId,
                         logUuid = serverLog.uuid,
                         fileName = serverAtt.file_name,
                         mimeType = serverAtt.mime_type,
@@ -178,7 +184,7 @@ class DiaryLogSyncer @Inject constructor(
         }
 
         // 5. 层叠物理删除：删除本地不在服务端活跃列表中的日志
-        val allLocalLogs = logDao.getAllActiveLogs()
+        val allLocalLogs = logDao.getAllActiveLogs(userId)
         allLocalLogs.forEach { local ->
             if (local.isSynced && !serverUuids.contains(local.uuid)) {
                 Log.i(TAG, "Cascading deletion for log: ${local.uuid}")

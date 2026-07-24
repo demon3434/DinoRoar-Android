@@ -37,7 +37,7 @@ fun PersonsTab(
     val allPersonsWithTemp by produceState<List<PersonEntity>>(initialValue = emptyList(), allPersons) {
         value = repository.getAllPersonsWithTemporary()
     }
-    val formalCount = remember(allPersons) { allPersons.filter { !it.isTemporary }.size }
+    val formalCount = remember(allPersonsWithTemp) { allPersonsWithTemp.filter { !it.isTemporary }.size }
     val tempCount = remember(allPersonsWithTemp) { allPersonsWithTemp.filter { it.isTemporary }.size }
     val categoryCount = allCategories.size
 

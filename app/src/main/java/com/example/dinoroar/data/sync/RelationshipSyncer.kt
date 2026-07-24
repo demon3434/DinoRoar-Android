@@ -14,17 +14,21 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.example.dinoroar.data.local.SecurePrefs
+
 @Singleton
 class RelationshipSyncer @Inject constructor(
     private val personDao: PersonDao,
-    private val apiService: DinoApiService
+    private val apiService: DinoApiService,
+    private val securePrefs: SecurePrefs
 ) {
     private val TAG = "RelationshipSyncer"
 
     suspend fun syncRelationship() = withContext(Dispatchers.IO) {
+        val userId = securePrefs.currentUserId
         // ==================== 阶段〇：同步关系人分类库 ====================
-        Log.i(TAG, "Syncing person categories...")
-        val localCategories = personDao.getAllCategoriesIncludingDeleted()
+        Log.i(TAG, "Syncing person categories for user $userId...")
+        val localCategories = personDao.getAllCategoriesIncludingDeleted(userId)
         val toSyncCategories = localCategories.filter { !it.isDeleted }.map {
             PersonCategorySyncItem(
                 uuid = it.uuid,
@@ -43,6 +47,7 @@ class RelationshipSyncer @Inject constructor(
             activeServerCategories.forEach { serverCat ->
                 val categoryEntity = PersonCategoryEntity(
                     uuid = serverCat.uuid,
+                    userId = userId,
                     name = serverCat.name,
                     sortOrder = serverCat.sort_order,
                     createdAt = serverCat.created_at ?: java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).format(java.util.Date()),
@@ -53,10 +58,10 @@ class RelationshipSyncer @Inject constructor(
             
             // 逻辑同步：如果本地处于活跃状态但不在云端活跃分类里，在本地将其置为已逻辑删除
             val serverCategoryUuids = activeServerCategories.map { it.uuid }.toSet()
-            val currentLocalCats = personDao.getAllCategories()
+            val currentLocalCats = personDao.getAllCategories(userId)
             currentLocalCats.forEach { localCat ->
                 if (!localCat.isDeleted && !serverCategoryUuids.contains(localCat.uuid)) {
-                    personDao.insertOrUpdateCategory(localCat.copy(isDeleted = true))
+                    personDao.insertOrUpdateCategory(localCat.copy(isDeleted = true, userId = userId))
                 }
             }
         } catch (e: Exception) {
@@ -65,8 +70,8 @@ class RelationshipSyncer @Inject constructor(
         }
 
         // ==================== 阶段一：同步关系人物库 ====================
-        Log.i(TAG, "Syncing person database...")
-        val unsyncedPersons = personDao.getUnsyncedPersons()
+        Log.i(TAG, "Syncing person database for user $userId...")
+        val unsyncedPersons = personDao.getUnsyncedPersons(userId)
         val toSyncPersons = unsyncedPersons.filter { !it.isDeleted }.map {
             PersonSyncItem(
                 uuid = it.uuid,
@@ -95,6 +100,7 @@ class RelationshipSyncer @Inject constructor(
             activeServerPersons.forEach { serverPerson ->
                 val personEntity = PersonEntity(
                     uuid = serverPerson.uuid,
+                    userId = userId,
                     name = serverPerson.name,
                     abbreviation = serverPerson.abbreviation,
                     relationship = serverPerson.relationship,
@@ -111,7 +117,7 @@ class RelationshipSyncer @Inject constructor(
 
             // 逻辑同步：若本地是活跃状态且已同步，但不在云端活跃人物列表中，我们将其设为已删除
             val serverPersonUuids = activeServerPersons.map { it.uuid }.toSet()
-            val allLocalPersons = personDao.getAllActivePersons()
+            val allLocalPersons = personDao.getAllActivePersons(userId)
             allLocalPersons.forEach { localPerson ->
                 if (localPerson.isSynced && !serverPersonUuids.contains(localPerson.uuid)) {
                     personDao.insertOrUpdate(localPerson.copy(isDeleted = true, isSynced = true))

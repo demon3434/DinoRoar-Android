@@ -34,11 +34,11 @@ class AttachmentFileSyncer @Inject constructor(
         val capabilities = cm.getNetworkCapabilities(activeNetwork) ?: return false
         return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
-
     suspend fun syncAttachments(isManual: Boolean) = withContext(Dispatchers.IO) {
+        val userId = securePrefs.currentUserId
         // ==================== 阶段六：同步已删除的附件到云端 (物理删除) ====================
         try {
-            val pendingDeletes = attachmentDao.getPendingDeleteAttachments()
+            val pendingDeletes = attachmentDao.getPendingDeleteAttachments(userId)
             for (att in pendingDeletes) {
                 try {
                     val response = apiService.deleteAttachment(att.uuid)
@@ -68,7 +68,7 @@ class AttachmentFileSyncer @Inject constructor(
         val wifiOnly = securePrefs.isWifiOnlyEnabled
 
         if (isManual || !wifiOnly || isWifi) {
-            val unsyncedAttachments = attachmentDao.getUnsyncedAttachments()
+            val unsyncedAttachments = attachmentDao.getUnsyncedAttachments(userId)
             
             for (att in unsyncedAttachments) {
                 val filePath = att.localFilePath ?: continue

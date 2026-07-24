@@ -12,8 +12,11 @@ import com.example.dinoroar.data.local.DinoDatabase
 import com.example.dinoroar.data.local.PersonCategoryEntity
 import com.example.dinoroar.data.local.DinoConfigEntity
 import com.example.dinoroar.data.local.DinoConfigDao
+import com.example.dinoroar.data.local.SecurePrefs
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -67,16 +70,35 @@ class DefaultDataRepository @Inject constructor(
     private val attachmentDao: AttachmentDao,
     private val personDao: PersonDao,
     private val logPersonDao: LogPersonDao,
-    private val dinoConfigDao: DinoConfigDao
+    private val dinoConfigDao: DinoConfigDao,
+    private val securePrefs: SecurePrefs
 ) : DataRepository {
 
-    override val allLogs: Flow<List<LogEntity>> = logDao.getAllActiveLogsFlow()
-    override val allLogsWithConfig: Flow<List<com.example.dinoroar.data.local.LogWithConfig>> = logDao.getAllActiveLogsWithConfigFlow()
-    override val allAttachmentsFlow: Flow<List<AttachmentEntity>> = attachmentDao.getAllActiveAttachmentsFlow()
-    override val allCrossRefsFlow: Flow<List<LogPersonCrossRef>> = logPersonDao.getAllCrossRefsFlow()
+    private val currentUserId: String
+        get() = securePrefs.currentUserId
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val allLogs: Flow<List<LogEntity>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        logDao.getAllActiveLogsFlow(userId)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val allLogsWithConfig: Flow<List<com.example.dinoroar.data.local.LogWithConfig>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        logDao.getAllActiveLogsWithConfigFlow(userId)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val allAttachmentsFlow: Flow<List<AttachmentEntity>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        attachmentDao.getAllActiveAttachmentsFlow(userId)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val allCrossRefsFlow: Flow<List<LogPersonCrossRef>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        logPersonDao.getAllCrossRefsFlow(userId)
+    }
 
     override fun searchLogs(query: String): Flow<List<LogEntity>> {
-        return logDao.searchActiveLogsFlow(query)
+        return logDao.searchActiveLogsFlow(currentUserId, query)
     }
 
     override suspend fun getLogByUuid(uuid: String): LogEntity? {
@@ -88,11 +110,12 @@ class DefaultDataRepository @Inject constructor(
     }
 
     override suspend fun insertLog(log: LogEntity, personUuids: List<String>) {
+        val targetLog = if (log.userId.isBlank()) log.copy(userId = currentUserId) else log
         database.withTransaction {
-            logDao.insertOrUpdate(log)
-            logPersonDao.deleteCrossRefsForLog(log.uuid)
+            logDao.insertOrUpdate(targetLog)
+            logPersonDao.deleteCrossRefsForLog(targetLog.uuid)
             val refs = personUuids.map { personUuid ->
-                LogPersonCrossRef(logUuid = log.uuid, personUuid = personUuid)
+                LogPersonCrossRef(logUuid = targetLog.uuid, personUuid = personUuid, userId = targetLog.userId)
             }
             logPersonDao.insertCrossRefs(refs)
         }
@@ -111,7 +134,8 @@ class DefaultDataRepository @Inject constructor(
     }
 
     override suspend fun insertAttachment(attachment: AttachmentEntity) {
-        attachmentDao.insertOrUpdate(attachment)
+        val targetAttachment = if (attachment.userId.isBlank()) attachment.copy(userId = currentUserId) else attachment
+        attachmentDao.insertOrUpdate(targetAttachment)
     }
 
     override suspend fun deleteAttachment(uuid: String) {
@@ -123,14 +147,21 @@ class DefaultDataRepository @Inject constructor(
     }
 
     override suspend fun getAllSyncedAttachments(): List<AttachmentEntity> {
-        return attachmentDao.getAllSyncedAttachments()
+        return attachmentDao.getAllSyncedAttachments(currentUserId)
     }
 
-    override val allPersons: Flow<List<PersonEntity>> = personDao.getAllActivePersonsFlow()
-    override val deletedPersons: Flow<List<PersonEntity>> = personDao.getDeletedPersonsFlow()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val allPersons: Flow<List<PersonEntity>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        personDao.getAllActivePersonsFlow(userId)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val deletedPersons: Flow<List<PersonEntity>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        personDao.getDeletedPersonsFlow(userId)
+    }
 
     override suspend fun getAllActivePersons(): List<PersonEntity> {
-        return personDao.getAllActivePersons()
+        return personDao.getAllActivePersons(currentUserId)
     }
 
     override suspend fun getPersonsForLog(logUuid: String): List<PersonEntity> {
@@ -142,7 +173,8 @@ class DefaultDataRepository @Inject constructor(
     }
 
     override suspend fun insertPerson(person: PersonEntity) {
-        personDao.insertOrUpdate(person)
+        val targetPerson = if (person.userId.isBlank()) person.copy(userId = currentUserId) else person
+        personDao.insertOrUpdate(targetPerson)
     }
 
     override suspend fun softDeletePerson(uuid: String) {
@@ -154,22 +186,30 @@ class DefaultDataRepository @Inject constructor(
     }
 
     override suspend fun getAllPersonsWithTemporary(): List<PersonEntity> {
-        return personDao.getAllPersonsWithTemporary()
+        return personDao.getAllPersonsWithTemporary(currentUserId)
     }
 
-    override val allCategories: Flow<List<PersonCategoryEntity>> = personDao.getAllCategoriesFlow()
-    override val deletedCategories: Flow<List<PersonCategoryEntity>> = personDao.getDeletedCategoriesFlow()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val allCategories: Flow<List<PersonCategoryEntity>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        personDao.getAllCategoriesFlow(userId)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val deletedCategories: Flow<List<PersonCategoryEntity>> = securePrefs.currentUserIdFlow.flatMapLatest { userId ->
+        personDao.getDeletedCategoriesFlow(userId)
+    }
 
     override suspend fun getAllCategories(): List<PersonCategoryEntity> {
-        return personDao.getAllCategories()
+        return personDao.getAllCategories(currentUserId)
     }
 
     override suspend fun getAllCategoriesIncludingDeleted(): List<PersonCategoryEntity> {
-        return personDao.getAllCategoriesIncludingDeleted()
+        return personDao.getAllCategoriesIncludingDeleted(currentUserId)
     }
 
     override suspend fun insertCategory(category: PersonCategoryEntity) {
-        personDao.insertOrUpdateCategory(category)
+        val targetCategory = if (category.userId.isBlank()) category.copy(userId = currentUserId) else category
+        personDao.insertOrUpdateCategory(targetCategory)
     }
 
     override suspend fun deleteCategory(categoryUuid: String) {
@@ -179,7 +219,8 @@ class DefaultDataRepository @Inject constructor(
     override suspend fun updateCategoriesOrder(categories: List<PersonCategoryEntity>) {
         database.withTransaction {
             val updated = categories.mapIndexed { index, cat ->
-                cat.copy(sortOrder = index)
+                val targetCat = if (cat.userId.isBlank()) cat.copy(userId = currentUserId, sortOrder = index) else cat.copy(sortOrder = index)
+                targetCat
             }
             personDao.insertOrUpdateCategories(updated)
         }
@@ -188,14 +229,15 @@ class DefaultDataRepository @Inject constructor(
     override suspend fun updatePersonsOrder(persons: List<PersonEntity>) {
         database.withTransaction {
             val updated = persons.mapIndexed { index, person ->
-                person.copy(sortOrder = index, isSynced = false)
+                val targetPerson = if (person.userId.isBlank()) person.copy(userId = currentUserId, sortOrder = index, isSynced = false) else person.copy(sortOrder = index, isSynced = false)
+                targetPerson
             }
             personDao.insertOrUpdateAll(updated)
         }
     }
 
     override suspend fun getRecentPersons(): List<PersonEntity> {
-        return personDao.getRecentPersons()
+        return personDao.getRecentPersons(currentUserId)
     }
 
     override fun getAllActiveDinoConfigsFlow(): Flow<List<DinoConfigEntity>> = dinoConfigDao.getAllActiveDinoConfigsFlow()

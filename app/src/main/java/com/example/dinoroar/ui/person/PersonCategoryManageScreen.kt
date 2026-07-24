@@ -239,7 +239,7 @@ fun PersonCategoryManageScreen(
                 if (unclassifiedPersons.isNotEmpty() || allCategories.isEmpty()) {
                     item(key = "STATIC_UNCLASSIFIED") {
                         CategorySection(
-                            category = PersonCategoryEntity("OTHER", "未分类", -1, ""),
+                            category = PersonCategoryEntity(uuid = "OTHER", name = "未分类", sortOrder = -1, createdAt = ""),
                             persons = unclassifiedPersons,
                             index = 0,
                             totalCategories = 1,

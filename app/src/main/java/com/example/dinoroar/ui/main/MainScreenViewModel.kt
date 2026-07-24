@@ -339,6 +339,11 @@ class MainScreenViewModel(
         selectedFilterMonths.value = emptySet()
         selectedFilterMoods.value = emptySet()
     }
+
+    fun resetState() {
+        clearFilter()
+        searchQuery.value = ""
+    }
 }
 
 // 首页看板大改版用到的纯展示数据结构

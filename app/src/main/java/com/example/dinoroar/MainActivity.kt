@@ -14,6 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.example.dinoroar.theme.DinoRoarTheme
@@ -51,7 +53,13 @@ class MainActivity : ComponentActivity() {
 
     enableEdgeToEdge()
     setContent {
+      val currentUserId by securePrefs.currentUserIdFlow.collectAsState(initial = securePrefs.username)
       var themeId by remember { mutableStateOf(securePrefs.currentThemeId) }
+
+      LaunchedEffect(currentUserId) {
+          themeId = securePrefs.currentThemeId
+      }
+
       DinoRoarTheme(themeId = themeId) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
           MainNavigation(

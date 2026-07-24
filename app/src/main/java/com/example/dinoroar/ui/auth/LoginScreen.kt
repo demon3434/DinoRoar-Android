@@ -102,7 +102,7 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "🦕 登录秘密舱室 🦖",
+                    text = "🦕 登录秘密基地 🦖",
                     color = neonAmber,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
@@ -285,12 +285,15 @@ fun LoginScreen(
                                     securePrefs.serverUrl = connectedUrl
                                     securePrefs.intranetUrl = intranetUrl.trim()
                                     securePrefs.extranetUrl = extranetUrl.trim()
-
                                     try {
                                         // 执行登录
                                         val tokenRes = apiService.login(username, password)
                                         securePrefs.token = tokenRes.access_token
                                         securePrefs.username = username
+                                        // ⚠️ 在激活 username 后，立即将连接成功地址保存进新登录用户的专属 Key 中，确保后续 getMe() 正常进行重定向重定向
+                                        securePrefs.serverUrl = connectedUrl
+                                        securePrefs.intranetUrl = intranetUrl.trim()
+                                        securePrefs.extranetUrl = extranetUrl.trim()
 
                                         // 同步提取并保存锁屏密码序列
                                         val profile = apiService.getMe()
@@ -312,7 +315,7 @@ fun LoginScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = neonBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("进入避难所", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("进入秘密基地", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }

@@ -4,10 +4,12 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Embedded
 import androidx.room.Relation
+import androidx.room.Index
 
-@Entity(tableName = "logs")
+@Entity(tableName = "logs", indices = [Index(value = ["userId"])])
 data class LogEntity(
     @PrimaryKey val uuid: String,
+    val userId: String = "", // 绑定关联的账号 Username/ID
     val title: String? = null,
     val incidentDate: String, // ISO-8601 String
     val moodDinoId: Int, // 关联 dino_config 的外键 ID
@@ -48,9 +50,10 @@ data class DinoConfigEntity(
     val isActive: Boolean = true
 )
 
-@Entity(tableName = "attachments")
+@Entity(tableName = "attachments", indices = [Index(value = ["userId"])])
 data class AttachmentEntity(
     @PrimaryKey val uuid: String,
+    val userId: String = "",
     val logUuid: String?,
     val fileName: String,
     val mimeType: String,
@@ -64,18 +67,20 @@ data class AttachmentEntity(
     val md5: String? = null
 )
 
-@Entity(tableName = "person_categories")
+@Entity(tableName = "person_categories", indices = [Index(value = ["userId"])])
 data class PersonCategoryEntity(
     @PrimaryKey val uuid: String,
+    val userId: String = "",
     val name: String,
     val sortOrder: Int,
     val createdAt: String,
     val isDeleted: Boolean = false
 )
 
-@Entity(tableName = "persons")
+@Entity(tableName = "persons", indices = [Index(value = ["userId"])])
 data class PersonEntity(
     @PrimaryKey val uuid: String,
+    val userId: String = "",
     val name: String,
     val abbreviation: String,   // 快速拼音缩写 (例如: "XM" -> 小明)
     val relationship: String,   // 关系 (例如: 爸爸, 老师, 同桌)
@@ -90,11 +95,13 @@ data class PersonEntity(
 
 @Entity(
     tableName = "log_person_cross_ref",
-    primaryKeys = ["logUuid", "personUuid"]
+    primaryKeys = ["logUuid", "personUuid"],
+    indices = [Index(value = ["logUuid"]), Index(value = ["personUuid"]), Index(value = ["userId"])]
 )
 data class LogPersonCrossRef(
     val logUuid: String,
-    val personUuid: String
+    val personUuid: String,
+    val userId: String = ""
 )
 
 @Entity(tableName = "sticker_series")

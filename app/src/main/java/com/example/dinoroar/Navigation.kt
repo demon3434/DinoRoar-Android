@@ -182,6 +182,7 @@ fun MainNavigation(
             entry<NineGridLock> {
                 NineGridLockScreen(
                     correctPattern = securePrefs.lockPattern,
+                    syncManager = syncManager,
                     onUnlockSuccess = {
                         backStack.removeLastOrNull()
                         if (backStack.isNotEmpty() && backStack.last() == CamouflageGame) {
@@ -238,6 +239,8 @@ fun MainNavigation(
                         backStack.add(PersonCategoryManage)
                     },
                     onLogout = {
+                        com.example.dinoroar.network.StickerConfigCache.clear()
+                        securePrefs.username = ""
                         securePrefs.token = null
                         backStack.clear()
                         backStack.add(Login)
@@ -294,10 +297,14 @@ fun MainNavigation(
                         backStack.add(SettingsEditPattern)
                     },
                     onLogout = {
+                        com.example.dinoroar.network.StickerConfigCache.clear()
+                        securePrefs.username = ""
                         securePrefs.token = null
                         backStack.add(Login)
                     },
                     onDisconnect = {
+                        com.example.dinoroar.network.StickerConfigCache.clear()
+                        securePrefs.username = ""
                         securePrefs.serverUrl = null
                         securePrefs.token = null
                         backStack.add(Login)

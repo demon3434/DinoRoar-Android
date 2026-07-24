@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [LogEntity::class, AttachmentEntity::class, PersonEntity::class, LogPersonCrossRef::class, PersonCategoryEntity::class, DinoConfigEntity::class, StickerSeriesEntity::class, StickerEntity::class],
-    version = 11,
+    version = 13,
     exportSchema = false
 )
 abstract class DinoDatabase : RoomDatabase() {
@@ -20,6 +20,22 @@ abstract class DinoDatabase : RoomDatabase() {
     abstract fun stickerSeriesDao(): StickerSeriesDao
 
     companion object {
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE logs ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_logs_userId` ON `logs` (`userId`)")
+
+                db.execSQL("ALTER TABLE attachments ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_userId` ON `attachments` (`userId`)")
+
+                db.execSQL("ALTER TABLE person_categories ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_person_categories_userId` ON `person_categories` (`userId`)")
+
+                db.execSQL("ALTER TABLE persons ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_persons_userId` ON `persons` (`userId`)")
+            }
+        }
+
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
