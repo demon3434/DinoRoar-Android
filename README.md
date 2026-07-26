@@ -38,14 +38,14 @@ DinoRoar Android 端是基于 Jetpack Compose 构建的现代手账与心情日�
 ### 编译步骤
 
 1. 克隆本项目并导入 Android Studio：
-   ```bash
-   git clone <repository-url> DinoRoar-Android
-   ```
+```bash
+git clone https://github.com/demon3434/DinoRoar-Android.git DinoRoar-Android
+```
 2. 等待 Gradle Sync 完成。
 3. 执行 Debug 构建或直接部署至手机/模拟器：
-   ```bash
-   ./gradlew assembleDebug
-   ```
+```bash
+./gradlew assembleDebug
+```
 
 ---
 
