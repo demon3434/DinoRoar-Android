@@ -92,26 +92,6 @@ fun getDinoMoodLabel(moodId: Int): String {
     }
 }
 
-@Composable
-fun rememberImageFromFile(file: File): ImageBitmap? {
-    var bitmap by remember(file) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(file) {
-        if (file.exists()) {
-            try {
-                val options = android.graphics.BitmapFactory.Options().apply {
-                    inSampleSize = 2
-                }
-                val raw = android.graphics.BitmapFactory.decodeFile(file.absolutePath, options)
-                if (raw != null) {
-                    bitmap = raw.asImageBitmap()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-    return bitmap
-}
 
 fun getStickerLocalResource(imageUrl: String): Int? {
     val clean = imageUrl.trim().substringAfterLast('/')

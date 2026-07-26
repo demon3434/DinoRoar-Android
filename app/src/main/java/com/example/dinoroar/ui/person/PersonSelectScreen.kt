@@ -43,14 +43,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-object PersonSelectionResultBus {
-    private val _results = MutableSharedFlow<List<String>>(extraBufferCapacity = 1)
-    val results = _results.asSharedFlow()
-
-    fun postResult(selected: List<String>) {
-        _results.tryEmit(selected)
-    }
-}
 
 object PersonEditResultBus {
     private val _editedPersonUuid = MutableSharedFlow<String>(extraBufferCapacity = 1)
@@ -179,21 +171,31 @@ fun PersonSelectScreen(
     // Suggestions list for relationship
     val relationSuggestions = listOf("好朋友", "普通同学", "老师", "家长", "邻居")
 
+    val deletedCategoryUuids = remember(allCategories) {
+        allCategories.filter { it.isDeleted }.map { it.uuid }.toSet()
+    }
+
     // Filtered persons based on search query or category click
-    val rightPersons = remember(allPersons, recentPersons, searchQuery, activeCategoryUuid) {
+    val rightPersons = remember(allPersons, recentPersons, searchQuery, activeCategoryUuid, deletedCategoryUuids) {
         if (searchQuery.isNotBlank()) {
             // Global search bypasses classification selection
             allPersons.filter { person ->
                 !person.isTemporary && !person.isDeleted &&
+                (person.categoryUuid == null || !deletedCategoryUuids.contains(person.categoryUuid)) &&
                 (person.name.contains(searchQuery, ignoreCase = true) ||
                  person.abbreviation.contains(searchQuery, ignoreCase = true))
             }
         } else {
             when (activeCategoryUuid) {
-                "RECENT" -> recentPersons.filter { !it.isDeleted }
-                "ALL" -> allPersons.filter { !it.isTemporary && !it.isDeleted }
-                "OTHER" -> allPersons.filter { !it.isTemporary && !it.isDeleted && it.categoryUuid == null }
-                else -> allPersons.filter { !it.isTemporary && !it.isDeleted && it.categoryUuid == activeCategoryUuid }
+                "RECENT" -> recentPersons.filter { person ->
+                    !person.isDeleted && (person.categoryUuid == null || !deletedCategoryUuids.contains(person.categoryUuid))
+                }
+                "ALL" -> allPersons.filter { person ->
+                    !person.isTemporary && !person.isDeleted && (person.categoryUuid == null || !deletedCategoryUuids.contains(person.categoryUuid))
+                }
+                else -> allPersons.filter { person ->
+                    !person.isTemporary && !person.isDeleted && person.categoryUuid == activeCategoryUuid
+                }
             }
         }
     }
@@ -393,9 +395,7 @@ fun PersonSelectScreen(
                     listOf(
                         PersonCategoryEntity(uuid = "RECENT", name = "最近常用", sortOrder = -3, createdAt = ""),
                         PersonCategoryEntity(uuid = "ALL", name = "全部", sortOrder = -2, createdAt = "")
-                    ) + allCategories.filter { !it.isDeleted } + listOf(
-                        PersonCategoryEntity(uuid = "OTHER", name = "未分类", sortOrder = -1, createdAt = "")
-                    )
+                    ) + allCategories.filter { !it.isDeleted }
                 }
 
                 LazyColumn(

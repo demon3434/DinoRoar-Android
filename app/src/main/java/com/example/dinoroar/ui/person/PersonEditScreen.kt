@@ -351,8 +351,11 @@ fun PersonEditScreen(
                         onClick = { 
                             if (isCurrentlyDeleted) {
                                 coroutineScope.launch {
-                                    existingPerson?.let {
-                                        repository.insertPerson(it.copy(isDeleted = false, isSynced = false))
+                                    existingPerson?.let { p ->
+                                        val activePersons = repository.getAllActivePersons()
+                                        val personsInCategory = activePersons.filter { it.categoryUuid == p.categoryUuid && !it.isDeleted }
+                                        val maxSort = if (personsInCategory.isEmpty()) -1 else personsInCategory.maxOf { it.sortOrder }
+                                        repository.insertPerson(p.copy(isDeleted = false, sortOrder = maxSort + 1, isSynced = false))
                                         Toast.makeText(context, "人物已重新启用！", Toast.LENGTH_SHORT).show()
                                         launch(Dispatchers.IO) { syncManager.sync() }
                                         onNavigateBack()
@@ -389,11 +392,24 @@ fun PersonEditScreen(
                         }
                         coroutineScope.launch {
                             val timeStamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+                            
+                            // 校验如果分类为空，但分类列表有数据，默认选择第一个分类
+                            var targetCategoryUuid = personCategoryUuid
+                            if (targetCategoryUuid == null && allCategories.isNotEmpty()) {
+                                targetCategoryUuid = allCategories.firstOrNull { !it.isDeleted }?.uuid 
+                                    ?: allCategories.firstOrNull()?.uuid
+                            }
+
+                            val activePersons = repository.getAllActivePersons()
+                            val personsInCategory = activePersons.filter { it.categoryUuid == targetCategoryUuid && !it.isDeleted }
+                            val maxSort = if (personsInCategory.isEmpty()) -1 else personsInCategory.maxOf { it.sortOrder }
+                            
                             val p = existingPerson?.copy(
                                 name = personName.trim(),
                                 abbreviation = personAbbrev.uppercase(Locale.US),
                                 relationship = personRelation.trim(),
-                                categoryUuid = personCategoryUuid,
+                                categoryUuid = targetCategoryUuid,
+                                sortOrder = if (existingPerson?.isTemporary == true) (maxSort + 1) else (existingPerson?.sortOrder ?: (maxSort + 1)),
                                 colorTag = personColor,
                                 isTemporary = false, // 转正/新建正式
                                 isSynced = false
@@ -402,8 +418,8 @@ fun PersonEditScreen(
                                 name = personName.trim(),
                                 abbreviation = personAbbrev.uppercase(Locale.US),
                                 relationship = personRelation.trim(),
-                                categoryUuid = personCategoryUuid,
-                                sortOrder = 0,
+                                categoryUuid = targetCategoryUuid,
+                                sortOrder = maxSort + 1,
                                 colorTag = personColor,
                                 isTemporary = false,
                                 createdAt = timeStamp,

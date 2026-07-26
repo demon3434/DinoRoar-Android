@@ -14,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,13 +30,21 @@ import androidx.compose.ui.unit.sp
 import com.example.dinoroar.data.local.PersonCategoryEntity
 import com.example.dinoroar.theme.LocalAppColors
 import com.example.dinoroar.ui.main.PersonMoodStatus
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.geometry.Offset
+import com.example.dinoroar.ui.person.DinoColorPalette
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CategoryPersonsPagerPanel(
     categories: List<PersonCategoryEntity>,
     categorySummaries: Map<String, List<PersonMoodStatus>>,
+    logs: List<com.example.dinoroar.data.local.LogEntity>,
+    allCrossRefs: List<com.example.dinoroar.data.local.LogPersonCrossRef>,
     onFilterPerson: (String) -> Unit,
+    onNavigateToCreate: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appColors = LocalAppColors.current
@@ -64,7 +75,20 @@ fun CategoryPersonsPagerPanel(
         return
     }
 
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                return available
+            }
+        }
+    }
+
     val pagerState = rememberPagerState(pageCount = { activeCategories.size })
+    var selectedPersonForHandbook by remember { mutableStateOf<com.example.dinoroar.data.local.PersonEntity?>(null) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
@@ -148,12 +172,15 @@ fun CategoryPersonsPagerPanel(
                         // Max 3 items display, if more we scroll inside card
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .nestedScroll(nestedScrollConnection)
                         ) {
                             items(persons) { status ->
                                 PersonRowItem(
                                     status = status,
-                                    onClick = { onFilterPerson(status.person.uuid) }
+                                    onClick = { onFilterPerson(status.person.uuid) },
+                                    onAvatarClick = { selectedPersonForHandbook = status.person }
                                 )
                             }
                         }
@@ -162,15 +189,36 @@ fun CategoryPersonsPagerPanel(
             }
         }
     }
+
+    selectedPersonForHandbook?.let { person ->
+        BondHandbookDialog(
+            person = person,
+            logs = logs,
+            allCrossRefs = allCrossRefs,
+            onDismissRequest = { selectedPersonForHandbook = null },
+            onFilterPerson = { uuid ->
+                selectedPersonForHandbook = null
+                onFilterPerson(uuid)
+            },
+            onNavigateToCreate = { uuid ->
+                selectedPersonForHandbook = null
+                onNavigateToCreate(uuid)
+            }
+        )
+    }
 }
 
 @Composable
 private fun PersonRowItem(
     status: PersonMoodStatus,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAvatarClick: () -> Unit
 ) {
     val appColors = LocalAppColors.current
     val initial = status.person.name.firstOrNull()?.toString() ?: "👤"
+    val colorPair = remember(status.person.colorTag) {
+        DinoColorPalette.getColorByTag(status.person.colorTag)
+    }
 
     Row(
         modifier = Modifier
@@ -186,13 +234,14 @@ private fun PersonRowItem(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(appColors.neonBlue.copy(alpha = 0.15f))
-                .border(1.dp, appColors.neonBlue.copy(alpha = 0.3f), CircleShape)
+                .background(colorPair.bg)
+                .border(1.dp, colorPair.text.copy(alpha = 0.4f), CircleShape)
+                .clickable { onAvatarClick() }
         ) {
             Text(
                 text = initial,
                 fontSize = 12.sp,
-                color = appColors.textPrimary,
+                color = colorPair.text,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -201,14 +250,33 @@ private fun PersonRowItem(
 
         // Name & count
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = status.person.name,
-                color = appColors.textPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = status.person.name,
+                    color = appColors.textPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!status.person.relationship.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(colorPair.bg)
+                            .border(1.dp, colorPair.text.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = status.person.relationship,
+                            color = colorPair.text,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
             Text(
                 text = "📝 记录了 ${status.diaryCount} 篇日记",
                 color = appColors.textSecondary,

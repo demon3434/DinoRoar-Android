@@ -58,10 +58,14 @@ fun DashboardTab(
 
         // 3. 小伙伴分类晴雨表左右滑动卡片
         item {
+            val rawLogs = remember(logs) { logs.map { it.log } }
             CategoryPersonsPagerPanel(
                 categories = allCategories,
                 categorySummaries = categorySummaries,
-                onFilterPerson = onFilterPerson
+                logs = rawLogs,
+                allCrossRefs = allCrossRefs,
+                onFilterPerson = onFilterPerson,
+                onNavigateToCreate = onNavigateToCreate
             )
         }
         

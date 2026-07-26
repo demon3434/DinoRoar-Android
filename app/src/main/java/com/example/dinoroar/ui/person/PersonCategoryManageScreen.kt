@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -64,6 +65,9 @@ fun PersonCategoryManageScreen(
     var editCategoryName by remember { mutableStateOf("") }
 
     var categoryToDelete by remember { mutableStateOf<PersonCategoryEntity?>(null) }
+    var personToDelete by remember { mutableStateOf<PersonEntity?>(null) }
+    var categoryToRestore by remember { mutableStateOf<PersonCategoryEntity?>(null) }
+    var personToRestore by remember { mutableStateOf<PersonEntity?>(null) }
 
     var isReorderMode by remember { mutableStateOf(false) } 
     var isSyncing by remember { mutableStateOf(false) }
@@ -72,10 +76,12 @@ fun PersonCategoryManageScreen(
     var isTempListExpanded by remember { mutableStateOf(false) }
     var isDeletedListExpanded by remember { mutableStateOf(false) }
 
-    // Group active formal persons
-    val groupedPersons = remember(allPersons) {
-        val formal = allPersons.filter { !it.isTemporary }
-        formal.groupBy { it.categoryUuid }
+    // Group all formal persons (including deleted ones) by category
+    val formalPersons = remember(allPersons, deletedPersons) {
+        allPersons + deletedPersons
+    }
+    val groupedPersons = remember(formalPersons) {
+        formalPersons.groupBy { it.categoryUuid }
     }
 
     // Split formal and temporary
@@ -210,6 +216,12 @@ fun PersonCategoryManageScreen(
                         onEditPerson = { person ->
                             onNavigateToPersonEdit(person.uuid, false, null)
                         },
+                        onDeletePerson = { person ->
+                            personToDelete = person
+                        },
+                        onRestorePerson = { person ->
+                            personToRestore = person
+                        },
                         onMovePersonUp = { personIndex ->
                             coroutineScope.launch {
                                 val mutable = personsInCategory.toMutableList()
@@ -234,48 +246,7 @@ fun PersonCategoryManageScreen(
                     )
                 }
 
-                // 2. 渲染“未分类”栏 (静态栏，不可删除)
-                val unclassifiedPersons = groupedPersons[null] ?: emptyList()
-                if (unclassifiedPersons.isNotEmpty() || allCategories.isEmpty()) {
-                    item(key = "STATIC_UNCLASSIFIED") {
-                        CategorySection(
-                            category = PersonCategoryEntity(uuid = "OTHER", name = "未分类", sortOrder = -1, createdAt = ""),
-                            persons = unclassifiedPersons,
-                            index = 0,
-                            totalCategories = 1,
-                            isReorderMode = isReorderMode,
-                            onEditCategory = {},
-                            onDeleteCategory = {},
-                            onMoveCategoryUp = {},
-                            onMoveCategoryDown = {},
-                            onAddPersonToCategory = {
-                                onNavigateToPersonEdit("NEW", false, null)
-                            },
-                            onEditPerson = { person ->
-                                onNavigateToPersonEdit(person.uuid, false, null)
-                            },
-                            onMovePersonUp = { personIndex ->
-                                coroutineScope.launch {
-                                    val mutable = unclassifiedPersons.toMutableList()
-                                    val temp = mutable[personIndex]
-                                    mutable[personIndex] = mutable[personIndex - 1]
-                                    mutable[personIndex - 1] = temp
-                                    repository.updatePersonsOrder(mutable)
-                                }
-                            },
-                            onMovePersonDown = { personIndex ->
-                                coroutineScope.launch {
-                                    val mutable = unclassifiedPersons.toMutableList()
-                                    val temp = mutable[personIndex]
-                                    mutable[personIndex] = mutable[personIndex + 1]
-                                    mutable[personIndex + 1] = temp
-                                    repository.updatePersonsOrder(mutable)
-                                }
-                            },
-                            modifier = Modifier.animateItem()
-                        )
-                    }
-                }
+
 
                 // 3. 渲染“一次性临时人物”折叠区 (核心防污染机制)
                 if (temporaryPersons.isNotEmpty()) {
@@ -353,7 +324,7 @@ fun PersonCategoryManageScreen(
                     }
                 }
 
-                if (deletedPersons.isNotEmpty() || deletedCategories.isNotEmpty()) {
+                if (deletedCategories.isNotEmpty()) {
                     item(key = "STATIC_DELETED_ARCHIVE") {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
@@ -368,14 +339,14 @@ fun PersonCategoryManageScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable { isDeletedListExpanded = !isDeletedListExpanded }
-                                ) {
+                                  ) {
                                     Icon(
                                         imageVector = if (isDeletedListExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
                                         contentDescription = "fold"
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "📁 已停用的关系人与分类 (${deletedPersons.size + deletedCategories.size})",
+                                        text = "📁 已停用的分类 (${deletedCategories.size})",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
                                         color = Color.Gray
@@ -390,7 +361,7 @@ fun PersonCategoryManageScreen(
                                             .fillMaxWidth()
                                     ) {
                                         Text(
-                                            text = "ℹ️ 您可以在此处随时“重新启用”被停用的分类和人物，恢复后他们将重现于日记点选与分类看板中。以前关联的历史日记在停用期间同样安全保留。",
+                                            text = "ℹ️ 您可以在此处随时“重新启用”被停用的分类，恢复后他们将重现于日记点选与分类看板中。以前关联的历史日记在停用期间同样安全保留。",
                                             fontSize = 11.sp,
                                             color = Color.Gray,
                                             lineHeight = 16.sp
@@ -400,67 +371,77 @@ fun PersonCategoryManageScreen(
                                         if (deletedCategories.isNotEmpty()) {
                                             Text("已停用的分类：", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                                             deletedCategories.forEach { cat ->
-                                                Row(
+                                                Card(
+                                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
+                                                        .border(1.dp, Color.Gray.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                                 ) {
-                                                    Text("📂 ${cat.name}", fontSize = 13.sp)
-                                                    TextButton(onClick = {
-                                                        coroutineScope.launch {
-                                                            repository.insertCategory(cat.copy(isDeleted = false))
-                                                            Toast.makeText(context, "分类 '${cat.name}' 已恢复启用！", Toast.LENGTH_SHORT).show()
-                                                            launch(Dispatchers.IO) { syncManager.sync() }
-                                                        }
-                                                    }) {
-                                                        Text("恢复启用", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        // 2. 列出已停用的人物
-                                        if (deletedPersons.isNotEmpty()) {
-                                            Text("已停用的关系人：", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                                            deletedPersons.forEach { p ->
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                                        .clickable {
-                                                            onNavigateToPersonEdit(p.uuid, false, null)
-                                                        }
-                                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    val colorPair = DinoColorPalette.getColorByTag(p.colorTag)
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(p.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                                        if (!p.relationship.isNullOrEmpty()) {
-                                                            Spacer(modifier = Modifier.width(6.dp))
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .clip(RoundedCornerShape(6.dp))
-                                                                    .background(colorPair.bg)
-                                                                    .border(1.dp, colorPair.text.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    Column(modifier = Modifier.padding(12.dp)) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            val personsInCat = allPersons.filter { !it.isTemporary && it.categoryUuid == cat.uuid }
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Text(
+                                                                    text = "📂 " + cat.name,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontSize = 14.sp,
+                                                                    color = Color.Gray
+                                                                )
+                                                                Spacer(modifier = Modifier.width(6.dp))
+                                                                Text(
+                                                                    text = "(${personsInCat.size}人)",
+                                                                    fontSize = 11.sp,
+                                                                    color = Color.Gray.copy(alpha = 0.8f)
+                                                                )
+                                                            }
+                                                            IconButton(
+                                                                onClick = {
+                                                                    categoryToRestore = cat
+                                                                },
+                                                                modifier = Modifier.size(32.dp)
                                                             ) {
-                                                                Text(p.relationship, color = colorPair.text, fontSize = 9.sp)
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Autorenew,
+                                                                    contentDescription = "恢复启用分类",
+                                                                    tint = Color(0xFF10B981),
+                                                                    modifier = Modifier.size(20.dp)
+                                                                )
                                                             }
                                                         }
-                                                    }
-                                                    TextButton(onClick = {
-                                                        coroutineScope.launch {
-                                                            repository.insertPerson(p.copy(isDeleted = false, isSynced = false))
-                                                            Toast.makeText(context, "关系人 '${p.name}' 已恢复启用！", Toast.LENGTH_SHORT).show()
-                                                            launch(Dispatchers.IO) { syncManager.sync() }
+                                                        
+                                                        val personsInCat = allPersons.filter { !it.isTemporary && it.categoryUuid == cat.uuid }
+                                                        if (personsInCat.isNotEmpty()) {
+                                                            Spacer(modifier = Modifier.height(8.dp))
+                                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                                personsInCat.forEach { p ->
+                                                                    val colorPair = DinoColorPalette.getColorByTag(p.colorTag)
+                                                                    Row(
+                                                                        modifier = Modifier
+                                                                            .fillMaxWidth()
+                                                                            .background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                                                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                                        verticalAlignment = Alignment.CenterVertically
+                                                                    ) {
+                                                                        Text(p.name, fontSize = 12.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                                                        if (!p.relationship.isNullOrEmpty()) {
+                                                                            Spacer(modifier = Modifier.width(6.dp))
+                                                                            Box(
+                                                                                modifier = Modifier
+                                                                                    .clip(RoundedCornerShape(6.dp))
+                                                                                    .background(colorPair.bg.copy(alpha = 0.5f))
+                                                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                                            ) {
+                                                                                Text(p.relationship, color = colorPair.text.copy(alpha = 0.7f), fontSize = 8.sp)
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
                                                         }
-                                                    }) {
-                                                        Text("恢复启用", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                                     }
                                                 }
                                             }
@@ -564,14 +545,14 @@ fun PersonCategoryManageScreen(
         AlertDialog(
             onDismissRequest = { categoryToDelete = null },
             title = { Text("确认停用分类 '${category.name}'？", fontWeight = FontWeight.Bold) },
-            text = { Text("停用分类后，该分类下的人员不会被删除，而是会自动转移到“未分类”中。您以前日记中的分类历史记录同样完整安全，且您可以随时在下方“已停用名单”中恢复启用此分类。") },
+            text = { Text("确定要停用这个分类吗？停用后该分类在日记选择和首页看板中将不再显示，但其下属人物的状态本身不受影响，以往的历史数据依然完整保留。") },
             confirmButton = {
                 Button(
                     onClick = {
                         categoryToDelete = null
                         coroutineScope.launch {
                             repository.deleteCategory(category.uuid)
-                            Toast.makeText(context, "分类已停用，人员已转移至'未分类'", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "分类已停用", Toast.LENGTH_SHORT).show()
                             launch(Dispatchers.IO) { syncManager.sync() }
                         }
                     },
@@ -582,6 +563,96 @@ fun PersonCategoryManageScreen(
             },
             dismissButton = {
                 OutlinedButton(onClick = { categoryToDelete = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 4. 停用关系人 确认 Dialog
+    personToDelete?.let { person ->
+        AlertDialog(
+            onDismissRequest = { personToDelete = null },
+            title = { Text("确认停用关系人 '${person.name}'？", fontWeight = FontWeight.Bold) },
+            text = { Text("确定要停用该关系人吗？停用后此人在写日记和首页看板中将不可见。以前日记中的记录依然完整保留，您随时可以在其所属的分类中重新将其恢复启用。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        personToDelete = null
+                        coroutineScope.launch {
+                            repository.insertPerson(person.copy(isDeleted = true, isSynced = false))
+                            Toast.makeText(context, "关系人 '${person.name}' 已停用", Toast.LENGTH_SHORT).show()
+                            launch(Dispatchers.IO) { syncManager.sync() }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("确认停用")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { personToDelete = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 5. 恢复启用分类 确认 Dialog
+    categoryToRestore?.let { category ->
+        AlertDialog(
+            onDismissRequest = { categoryToRestore = null },
+            title = { Text("确认恢复启用分类 '${category.name}'？", fontWeight = FontWeight.Bold) },
+            text = { Text("恢复启用后，该分类将重新显示在写日记和首页看板的分类列表中，其以往的历史数据均保持完整。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        categoryToRestore = null
+                        coroutineScope.launch {
+                            val maxSort = allCategories.maxOfOrNull { it.sortOrder } ?: -1
+                            repository.insertCategory(category.copy(isDeleted = false, sortOrder = maxSort + 1))
+                            Toast.makeText(context, "分类 '${category.name}' 已恢复启用！", Toast.LENGTH_SHORT).show()
+                            launch(Dispatchers.IO) { syncManager.sync() }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Text("确认启用")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { categoryToRestore = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 6. 恢复启用关系人 确认 Dialog
+    personToRestore?.let { person ->
+        AlertDialog(
+            onDismissRequest = { personToRestore = null },
+            title = { Text("确认恢复启用关系人 '${person.name}'？", fontWeight = FontWeight.Bold) },
+            text = { Text("恢复启用后，该人物将重新显示在写日记和首页看板的人员列表中，并在其原有的分类中可见。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        personToRestore = null
+                        coroutineScope.launch {
+                            val activePersonsInCat = allPersons.filter { it.categoryUuid == person.categoryUuid && !it.isDeleted }
+                            val maxSort = if (activePersonsInCat.isEmpty()) -1 else activePersonsInCat.maxOf { it.sortOrder }
+                            repository.insertPerson(person.copy(isDeleted = false, sortOrder = maxSort + 1, isSynced = false))
+                            Toast.makeText(context, "关系人 '${person.name}' 已恢复启用！", Toast.LENGTH_SHORT).show()
+                            launch(Dispatchers.IO) { syncManager.sync() }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Text("确认启用")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { personToRestore = null }) {
                     Text("取消")
                 }
             }
@@ -602,12 +673,12 @@ fun CategorySection(
     onMoveCategoryDown: () -> Unit,
     onAddPersonToCategory: () -> Unit,
     onEditPerson: (PersonEntity) -> Unit,
+    onDeletePerson: (PersonEntity) -> Unit,
+    onRestorePerson: (PersonEntity) -> Unit,
     onMovePersonUp: (Int) -> Unit,
     onMovePersonDown: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isStaticCategory = category.uuid == "OTHER"
-
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = modifier
@@ -640,7 +711,7 @@ fun CategorySection(
                     )
                 }
 
-                if (isReorderMode && !isStaticCategory) {
+                if (isReorderMode) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         IconButton(
                             onClick = onMoveCategoryUp,
@@ -677,22 +748,20 @@ fun CategorySection(
                             )
                         }
                         
-                        if (!isStaticCategory) {
-                            IconButton(onClick = onEditCategory, modifier = Modifier.size(28.dp)) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "edit",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            IconButton(onClick = onDeleteCategory, modifier = Modifier.size(28.dp)) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "delete",
-                                    tint = Color.Red,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                        IconButton(onClick = onEditCategory, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "edit",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        IconButton(onClick = onDeleteCategory, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Block,
+                                contentDescription = "disable",
+                                tint = Color.Red,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }
@@ -717,11 +786,12 @@ fun CategorySection(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     persons.forEachIndexed { personIndex, person ->
+                        val isPersonDeleted = person.isDeleted
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    color = if (isPersonDeleted) Color.Gray.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .clickable { onEditPerson(person) }
@@ -733,25 +803,29 @@ fun CategorySection(
                                 DinoColorPalette.getColorByTag(person.colorTag)
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = if (isPersonDeleted) Modifier.alpha(0.5f) else Modifier
+                            ) {
                                 Text(
                                     text = person.name,
                                     fontSize = 14.sp,
                                     fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPersonDeleted) Color.Gray else Color.Unspecified
                                 )
                                 if (!person.relationship.isNullOrEmpty()) {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(colorPair.bg)
-                                            .border(1.dp, colorPair.text.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                            .background(if (isPersonDeleted) Color.LightGray.copy(alpha = 0.4f) else colorPair.bg)
+                                            .border(1.dp, if (isPersonDeleted) Color.Gray.copy(alpha = 0.2f) else colorPair.text.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
                                             text = person.relationship,
-                                            color = colorPair.text,
+                                            color = if (isPersonDeleted) Color.Gray else colorPair.text,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -763,36 +837,66 @@ fun CategorySection(
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     IconButton(
                                         onClick = { onMovePersonUp(personIndex) },
-                                        enabled = personIndex > 0,
+                                        enabled = personIndex > 0 && !isPersonDeleted,
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.KeyboardArrowUp,
                                             contentDescription = "up",
                                             modifier = Modifier.size(18.dp),
-                                            tint = if (personIndex > 0) MaterialTheme.colorScheme.secondary else Color.Gray.copy(alpha = 0.4f)
+                                            tint = if (personIndex > 0 && !isPersonDeleted) MaterialTheme.colorScheme.secondary else Color.Gray.copy(alpha = 0.4f)
                                         )
                                     }
                                     IconButton(
                                         onClick = { onMovePersonDown(personIndex) },
-                                        enabled = personIndex < persons.size - 1,
+                                        enabled = personIndex < persons.size - 1 && !isPersonDeleted,
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.KeyboardArrowDown,
                                             contentDescription = "down",
                                             modifier = Modifier.size(18.dp),
-                                            tint = if (personIndex < persons.size - 1) MaterialTheme.colorScheme.secondary else Color.Gray.copy(alpha = 0.4f)
+                                            tint = if (personIndex < persons.size - 1 && !isPersonDeleted) MaterialTheme.colorScheme.secondary else Color.Gray.copy(alpha = 0.4f)
                                         )
                                     }
                                 }
                             } else {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowRight,
-                                    contentDescription = "edit",
-                                    tint = Color.Gray,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (isPersonDeleted) {
+                                        IconButton(
+                                            onClick = { onRestorePerson(person) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Autorenew,
+                                                contentDescription = "恢复启用人物",
+                                                tint = Color(0xFF10B981),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else {
+                                        IconButton(
+                                            onClick = { onDeletePerson(person) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Block,
+                                                contentDescription = "停用人物",
+                                                tint = Color.Red.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = "edit",
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }

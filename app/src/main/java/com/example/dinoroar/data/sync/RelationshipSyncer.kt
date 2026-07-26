@@ -51,7 +51,7 @@ class RelationshipSyncer @Inject constructor(
                     name = serverCat.name,
                     sortOrder = serverCat.sort_order,
                     createdAt = serverCat.created_at ?: java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).format(java.util.Date()),
-                    isDeleted = false
+                    isDeleted = serverCat.is_deleted
                 )
                 personDao.insertOrUpdateCategory(categoryEntity)
             }
@@ -109,7 +109,7 @@ class RelationshipSyncer @Inject constructor(
                     colorTag = serverPerson.color_tag,
                     isTemporary = serverPerson.is_temporary,
                     createdAt = serverPerson.created_at,
-                    isDeleted = false,
+                    isDeleted = serverPerson.is_deleted,
                     isSynced = true
                 )
                 personDao.insertOrUpdate(personEntity)

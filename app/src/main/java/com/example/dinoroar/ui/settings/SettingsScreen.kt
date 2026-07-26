@@ -43,6 +43,7 @@ import com.example.dinoroar.theme.LocalAppColors
 import com.example.dinoroar.theme.ThemeList
 import com.example.dinoroar.network.NsdHelper
 import com.example.dinoroar.network.DiscoveredServerInfo
+import com.example.dinoroar.network.DinoApiService
 import androidx.activity.compose.BackHandler
 
 enum class SettingMenuState {
@@ -52,7 +53,8 @@ enum class SettingMenuState {
     SERVER_ADDRESS,       // 修改服务器地址 (二级)
     MEDIA_SETTINGS,       // 多媒体附件设置 (二级)
     VIDEO_QUALITY,        // 视频压缩档位 (三级)
-    DIAGNOSTIC_LOG        // 诊断日志页面 (二级)
+    DIAGNOSTIC_LOG,       // 诊断日志页面 (二级)
+    CHANGE_PASSWORD       // 修改登录密码 (二级)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +63,7 @@ fun SettingsScreen(
     nsdHelper: NsdHelper,
     securePrefs: SecurePrefs,
     repository: DataRepository,
+    apiService: DinoApiService,
     onThemeChanged: (Int) -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToEditPattern: () -> Unit,
@@ -92,6 +95,7 @@ fun SettingsScreen(
             SettingMenuState.MEDIA_SETTINGS -> menuState = SettingMenuState.MAIN
             SettingMenuState.VIDEO_QUALITY -> menuState = SettingMenuState.MEDIA_SETTINGS
             SettingMenuState.DIAGNOSTIC_LOG -> menuState = SettingMenuState.MAIN
+            SettingMenuState.CHANGE_PASSWORD -> menuState = SettingMenuState.MAIN
         }
     }
 
@@ -144,9 +148,10 @@ fun SettingsScreen(
                                 SettingMenuState.DINO_LOCK -> "恐龙序列解锁设置"
                                 SettingMenuState.THEME_SELECT -> "主题颜色设置"
                                 SettingMenuState.SERVER_ADDRESS -> "服务器地址配置"
-                                SettingMenuState.MEDIA_SETTINGS -> "多媒体附件参数"
+                                SettingMenuState.MEDIA_SETTINGS -> "多媒体附件管理"
                                 SettingMenuState.VIDEO_QUALITY -> "视频压缩质量"
                                 SettingMenuState.DIAGNOSTIC_LOG -> "诊断与调试日志"
+                                SettingMenuState.CHANGE_PASSWORD -> "修改登录密码"
                             },
                             color = neonAmber,
                             fontFamily = FontFamily.Monospace,
@@ -217,6 +222,39 @@ fun SettingsScreen(
                                         checkedThumbColor = neonAmber,
                                         checkedTrackColor = neonAmber.copy(alpha = 0.5f)
                                     )
+                                )
+                            }
+                            HorizontalDivider(color = textSecondary.copy(alpha = 0.12f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                            // 🔑 修改登录密码
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { menuState = SettingMenuState.CHANGE_PASSWORD }
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "🔑 修改登录密码",
+                                        color = textPrimary,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "定期修改密码以保障账户安全",
+                                        color = textSecondary,
+                                        fontSize = 13.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = textSecondary
                                 )
                             }
                             HorizontalDivider(color = textSecondary.copy(alpha = 0.12f), modifier = Modifier.padding(horizontal = 16.dp))
@@ -474,6 +512,18 @@ fun SettingsScreen(
                             textSecondary = textSecondary,
                             neonBlue = neonBlue,
                             neonRed = neonRed,
+                            neonAmber = neonAmber,
+                            cardBg = cardBg
+                        )
+                    }
+
+                    SettingMenuState.CHANGE_PASSWORD -> {
+                        ChangePasswordSettingsSection(
+                            apiService = apiService,
+                            coroutineScope = coroutineScope,
+                            onLogout = onLogout,
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary,
                             neonAmber = neonAmber,
                             cardBg = cardBg
                         )

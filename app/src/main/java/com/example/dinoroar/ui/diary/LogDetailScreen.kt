@@ -247,10 +247,8 @@ fun LogDetailScreen(
             val incidentDateFormatted = try {
                 log.incidentDate.replace("T", " ").substring(0, 19)
             } catch (e: Exception) { log.incidentDate }
-            val updatedAtFormatted = try {
-                log.updatedAt.replace("T", " ").substring(0, 19)
-            } catch (e: Exception) { log.updatedAt }
-            val isEdited = log.incidentDate != log.updatedAt && log.updatedAt.isNotBlank()
+            val updatedAtFormatted = formatUtcToLocal(log.updatedAt)
+            val isEdited = log.incidentDate != log.updatedAt && log.updatedAt.isNotBlank() && incidentDateFormatted != updatedAtFormatted
 
             Column {
                 Text(
@@ -1130,4 +1128,27 @@ private fun rememberVideoThumbnailForPreview(uri: Uri, fileExists: Boolean, cont
         }
     }
     return bitmap
+}
+
+private fun formatUtcToLocal(utcTime: String): String {
+    if (utcTime.isBlank()) return ""
+    val clean = utcTime.replace("T", " ")
+    val formats = listOf(
+        "yyyy-MM-dd HH:mm:ss.SSSSSS",
+        "yyyy-MM-dd HH:mm:ss.SSS",
+        "yyyy-MM-dd HH:mm:ss"
+    )
+    for (fmt in formats) {
+        try {
+            val sdf = java.text.SimpleDateFormat(fmt, java.util.Locale.US)
+            sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            val date = sdf.parse(clean)
+            if (date != null) {
+                val localSdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                localSdf.timeZone = java.util.TimeZone.getDefault()
+                return localSdf.format(date)
+            }
+        } catch (e: Exception) {}
+    }
+    return utcTime
 }

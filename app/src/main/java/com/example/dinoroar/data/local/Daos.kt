@@ -44,8 +44,6 @@ interface LogDao {
     @Query("DELETE FROM logs WHERE uuid = :uuid")
     suspend fun hardDeleteLog(uuid: String)
 
-    @Query("DELETE FROM logs WHERE uuid IN (:uuids)")
-    suspend fun hardDeleteLogs(uuids: List<String>)
 
     @Query("UPDATE logs SET isSynced = 1, isLocalOnly = 0 WHERE uuid = :uuid")
     suspend fun markSynced(uuid: String)
@@ -83,8 +81,6 @@ interface AttachmentDao {
     @Query("UPDATE attachments SET isDeleted = 1, isSynced = 0 WHERE uuid = :uuid")
     suspend fun softDeleteAttachment(uuid: String)
 
-    @Query("UPDATE attachments SET isDeleted = 1, isSynced = 0 WHERE logUuid = :logUuid")
-    suspend fun softDeleteAttachmentsForLog(logUuid: String)
 
     @Query("DELETE FROM attachments WHERE uuid = :uuid")
     suspend fun hardDeleteAttachment(uuid: String)
@@ -125,11 +121,6 @@ interface PersonDao {
     @Query("UPDATE persons SET isDeleted = 1, isSynced = 0 WHERE uuid = :uuid")
     suspend fun softDeletePerson(uuid: String)
 
-    @Query("DELETE FROM persons WHERE uuid = :uuid")
-    suspend fun hardDeletePerson(uuid: String)
-
-    @Query("DELETE FROM persons WHERE uuid IN (:uuids)")
-    suspend fun hardDeletePersons(uuids: List<String>)
 
     @Query("UPDATE persons SET isSynced = 1 WHERE uuid = :uuid")
     suspend fun markSynced(uuid: String)
@@ -159,13 +150,10 @@ interface PersonDao {
     @Query("UPDATE person_categories SET isDeleted = 1 WHERE uuid = :uuid")
     suspend fun softDeleteCategory(uuid: String)
 
-    @Query("UPDATE persons SET categoryUuid = NULL, isSynced = 0 WHERE categoryUuid = :categoryUuid")
-    suspend fun removeCategoryFromPersons(categoryUuid: String)
 
     @Transaction
     suspend fun deleteCategoryAndUnbindPersons(categoryUuid: String) {
         softDeleteCategory(categoryUuid)
-        removeCategoryFromPersons(categoryUuid)
     }
 
     // === Recent Persons (5) Query ===
@@ -185,19 +173,11 @@ interface PersonDao {
 interface LogPersonDao {
     @Query("SELECT * FROM log_person_cross_ref WHERE userId = :userId OR userId = ''")
     fun getAllCrossRefsFlow(userId: String): Flow<List<LogPersonCrossRef>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCrossRef(crossRef: LogPersonCrossRef)
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCrossRefs(crossRefs: List<LogPersonCrossRef>)
 
     @Query("DELETE FROM log_person_cross_ref WHERE logUuid = :logUuid")
     suspend fun deleteCrossRefsForLog(logUuid: String)
-
-    @Query("DELETE FROM log_person_cross_ref WHERE personUuid = :personUuid")
-    suspend fun deleteCrossRefsForPerson(personUuid: String)
-
     @Query("""
         SELECT p.* FROM persons p
         INNER JOIN log_person_cross_ref ref ON p.uuid = ref.personUuid
@@ -221,14 +201,6 @@ interface DinoConfigDao {
     @Query("SELECT * FROM dino_config WHERE isActive = 1 ORDER BY sortOrder ASC")
     suspend fun getAllActiveDinoConfigs(): List<DinoConfigEntity>
 
-    @Query("SELECT * FROM dino_config")
-    suspend fun getAllDinoConfigs(): List<DinoConfigEntity>
-
-    @Query("SELECT * FROM dino_config WHERE id = :id LIMIT 1")
-    suspend fun getDinoConfigById(id: Int): DinoConfigEntity?
-
-    @Query("SELECT * FROM dino_config WHERE legacyKey = :legacyKey LIMIT 1")
-    suspend fun getDinoConfigByLegacyKey(legacyKey: String): DinoConfigEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateAll(configs: List<DinoConfigEntity>)
@@ -245,11 +217,6 @@ interface StickerDao {
     @Query("SELECT * FROM stickers WHERE isDeleted = 0 AND isActive = 1 ORDER BY sortOrder ASC")
     suspend fun getAllActiveStickers(): List<StickerEntity>
 
-    @Query("SELECT * FROM stickers WHERE id = :id LIMIT 1")
-    suspend fun getStickerById(id: Int): StickerEntity?
-
-    @Query("SELECT * FROM stickers WHERE id IN (:ids)")
-    suspend fun getStickersByIds(ids: List<Int>): List<StickerEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateAll(stickers: List<StickerEntity>)
@@ -263,8 +230,6 @@ interface StickerSeriesDao {
     @Query("SELECT * FROM sticker_series WHERE isDeleted = 0 AND isActive = 1 ORDER BY sortOrder ASC")
     fun getAllActiveSeriesFlow(): Flow<List<StickerSeriesEntity>>
 
-    @Query("SELECT * FROM sticker_series WHERE isDeleted = 0 AND isActive = 1 ORDER BY sortOrder ASC")
-    suspend fun getAllActiveSeries(): List<StickerSeriesEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateAll(seriesList: List<StickerSeriesEntity>)

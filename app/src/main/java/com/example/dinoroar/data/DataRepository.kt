@@ -61,6 +61,7 @@ interface DataRepository {
     fun getAllActiveDinoConfigsFlow(): Flow<List<DinoConfigEntity>>
     suspend fun getAllActiveDinoConfigs(): List<DinoConfigEntity>
     suspend fun syncDinoConfig(dinoConfigs: List<DinoConfigEntity>)
+    suspend fun clearAllData()
 }
 
 @Singleton
@@ -249,6 +250,12 @@ class DefaultDataRepository @Inject constructor(
     override suspend fun syncDinoConfig(dinoConfigs: List<DinoConfigEntity>) {
         database.withTransaction {
             dinoConfigDao.insertOrUpdateAll(dinoConfigs)
+        }
+    }
+
+    override suspend fun clearAllData() {
+        database.withTransaction {
+            database.clearAllTables()
         }
     }
 }

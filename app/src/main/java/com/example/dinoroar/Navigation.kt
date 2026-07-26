@@ -38,6 +38,8 @@ import com.example.dinoroar.ui.lock.CamouflageGameScreen
 import com.example.dinoroar.ui.lock.NineGridLockScreen
 import com.example.dinoroar.ui.main.MainScreen
 import com.example.dinoroar.ui.settings.SettingsScreen
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.example.dinoroar.ui.settings.SettingsEditPatternScreen
 import com.example.dinoroar.ui.person.PersonSelectScreen
 import com.example.dinoroar.ui.person.PersonCategoryManageScreen
@@ -74,6 +76,7 @@ fun MainNavigation(
 
     val backStack = rememberNavBackStack(startDestination)
     var prevBackStackList by remember { mutableStateOf(backStack.toList()) }
+    val coroutineScope = rememberCoroutineScope()
 
     val context = LocalContext.current
     LaunchedEffect(backStack.lastOrNull()) {
@@ -242,6 +245,9 @@ fun MainNavigation(
                         com.example.dinoroar.network.StickerConfigCache.clear()
                         securePrefs.username = ""
                         securePrefs.token = null
+                        coroutineScope.launch {
+                            repository.clearAllData()
+                        }
                         backStack.clear()
                         backStack.add(Login)
                     },
@@ -289,6 +295,7 @@ fun MainNavigation(
                     nsdHelper = nsdHelper,
                     securePrefs = securePrefs,
                     repository = repository,
+                    apiService = apiService,
                     onThemeChanged = onThemeChanged,
                     onNavigateBack = {
                         backStack.removeLastOrNull()
@@ -300,6 +307,9 @@ fun MainNavigation(
                         com.example.dinoroar.network.StickerConfigCache.clear()
                         securePrefs.username = ""
                         securePrefs.token = null
+                        coroutineScope.launch {
+                            repository.clearAllData()
+                        }
                         backStack.add(Login)
                     },
                     onDisconnect = {
@@ -307,6 +317,9 @@ fun MainNavigation(
                         securePrefs.username = ""
                         securePrefs.serverUrl = null
                         securePrefs.token = null
+                        coroutineScope.launch {
+                            repository.clearAllData()
+                        }
                         backStack.add(Login)
                     },
                     modifier = Modifier.fillMaxSize()

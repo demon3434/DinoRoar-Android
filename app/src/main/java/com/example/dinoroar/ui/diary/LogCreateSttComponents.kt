@@ -161,6 +161,14 @@ fun VoiceInputButton(
     var recordedFile by remember { mutableStateOf<File?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            if (isRecording) {
+                audioRecorder.cancelRecording()
+            }
+        }
+    }
+
     fun startRecordingInternal() {
         Log.i("VoiceInputButton", "Starting STT voice recording for targetField: $targetField")
         val f = audioRecorder.startRecording()

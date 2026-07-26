@@ -162,6 +162,13 @@ interface DinoApiService {
         @Body payload: UserUpdateLock
     ): UserResponse
 
+    @FormUrlEncoded
+    @POST("api/auth/password")
+    suspend fun changePassword(
+        @Field("old_password") oldPass: String,
+        @Field("new_password") newPass: String
+    ): retrofit2.Response<Unit>
+
     @POST("api/logs/sync")
     suspend fun syncLogs(
         @Body payload: LogSyncPayload
@@ -205,10 +212,6 @@ interface DinoApiService {
     @GET("api/stickers/inventory")
     suspend fun getStickerInventory(): StickerInventorySyncDto
 
-    @POST("api/stickers/inventory")
-    suspend fun syncStickerInventory(
-        @Body payload: StickerInventorySyncDto
-    ): StickerInventorySyncDto
 
     @GET("api/stickers/config")
     suspend fun getStickersConfig(): List<StickerSeriesDto>
