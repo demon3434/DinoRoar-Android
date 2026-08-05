@@ -4,13 +4,20 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -67,6 +74,10 @@ fun StickerViewerCanvas(
 ) {
     if (stickers.isEmpty()) return
 
+    // 用 onSizeChanged 捕获画布实际渲染像素尺寸，与 Editor 一致的逻辑坐标还原方案
+    val density = LocalDensity.current.density
+    var canvasSizePx by remember { mutableStateOf(IntSize.Zero) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -74,12 +85,23 @@ fun StickerViewerCanvas(
             .clip(RoundedCornerShape(16.dp))
             .background(cardBg.copy(alpha = 0.3f))
             .border(1.dp, neonBlue.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .onSizeChanged { canvasSizePx = it }
     ) {
+        // 将像素宽高转换为 dp，计算逻辑坐标缩放比（与 Editor 通用同一常量）
+        val canvasW = if (canvasSizePx.width > 0) canvasSizePx.width / density else STICKER_CANVAS_LOGICAL_W
+        val canvasH = if (canvasSizePx.height > 0) canvasSizePx.height / density else STICKER_CANVAS_LOGICAL_H
+        val scaleX = canvasW / STICKER_CANVAS_LOGICAL_W
+        val scaleY = canvasH / STICKER_CANVAS_LOGICAL_H
+
         stickers.forEach { sticker ->
             Box(
                 modifier = Modifier
-                    .offset(sticker.x.dp, sticker.y.dp)
-                    .size(56.dp)
+                    // 将保存的逻辑坐标还原为实际 dp offset，同时 coerceAtMost 防止老数据在窄屏上溢出
+                    .offset(
+                        x = ((sticker.x * scaleX).coerceAtMost(canvasW - STICKER_SIZE_DP)).dp,
+                        y = ((sticker.y * scaleY).coerceAtMost(canvasH - STICKER_SIZE_DP)).dp
+                    )
+                    .size(STICKER_SIZE_DP.dp)
             ) {
                 val finalStickerId = sticker.dinoId.trim()
                 val configObj = stickersConfig.find { it.id.toString() == finalStickerId }

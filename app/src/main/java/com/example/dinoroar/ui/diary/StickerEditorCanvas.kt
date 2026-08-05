@@ -7,6 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +40,15 @@ import com.example.dinoroar.ui.main.getDinoResource
 /** 手账贴纸最大数量约束（全局硬性上限：不得超过 6 张）*/
 const val STICKER_MAX_COUNT = 6
 
+/** 贴纸画布逻辑参考宽度（dp）—— 与屏幕实际宽度无关，用于统一双端坐标系 */
+const val STICKER_CANVAS_LOGICAL_W = 360f
+
+/** 贴纸画布逻辑参考高度（dp）—— 与 Canvas height(180.dp) 保持一致 */
+const val STICKER_CANVAS_LOGICAL_H = 180f
+
+/** 贴纸图标尺寸（dp），用于计算可拖拽范围上限 */
+const val STICKER_SIZE_DP = 56f
+
 /**
  * 手账贴纸拖拽编辑 Canvas 组件。
  * 负责渲染、拖拽定位、以及删除贴纸；严格强制最大 [STICKER_MAX_COUNT] 张上限。
@@ -62,11 +73,15 @@ fun StickerEditorCanvas(
                 available: androidx.compose.ui.geometry.Offset,
                 source: NestedScrollSource
             ): androidx.compose.ui.geometry.Offset {
-                return if (source == NestedScrollSource.Drag) available
+                return if (source == NestedScrollSource.UserInput) available
                 else androidx.compose.ui.geometry.Offset.Zero
             }
         }
     }
+
+    // 用 onSizeChanged 捕获画布实际渲染像素尺寸，转换为 dp 后计算缩放比
+    // 比 BoxWithConstraints 更可靠（BoxWithConstraints 在 verticalScroll 内 maxHeight=Infinity）
+    var canvasSizePx by remember { mutableStateOf(IntSize.Zero) }
 
     Box(
         modifier = modifier
@@ -76,7 +91,19 @@ fun StickerEditorCanvas(
             .background(cardBg.copy(alpha = 0.4f))
             .border(1.dp, neonBlue.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
             .nestedScroll(stickerDragNestedScrollConnection)
+            .onSizeChanged { canvasSizePx = it }  // 第一次 layout 后即可得到真实像素宽高
     ) {
+        // 将像素宽高转换为 dp，用于计算缩放比（首帧前兜底为 LOGICAL 值，等同 scaleX=1）
+        val canvasW = if (canvasSizePx.width > 0) canvasSizePx.width / density else STICKER_CANVAS_LOGICAL_W
+        val canvasH = if (canvasSizePx.height > 0) canvasSizePx.height / density else STICKER_CANVAS_LOGICAL_H
+        // 逻辑坐标 → 实际 dp 的缩放比
+        val scaleX = canvasW / STICKER_CANVAS_LOGICAL_W
+        val scaleY = canvasH / STICKER_CANVAS_LOGICAL_H
+        // 贴纸图标是固定的 56 屏幕dp，需要除以 scaleX 转换为逻辑坐标再计算边界
+        // 这样无论 canvas 多宽，贴纸右/下边缘都精确贴到画布边缘
+        val maxLogicX = STICKER_CANVAS_LOGICAL_W - STICKER_SIZE_DP / scaleX
+        val maxLogicY = STICKER_CANVAS_LOGICAL_H - STICKER_SIZE_DP / scaleY
+
         if (stickers.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -93,13 +120,15 @@ fun StickerEditorCanvas(
         }
 
         stickers.forEachIndexed { index, sticker ->
+            // offsetX/Y 保存的是逻辑坐标（与屏幕尺寸无关）
             var offsetX by remember(sticker.id) { mutableStateOf(sticker.x) }
             var offsetY by remember(sticker.id) { mutableStateOf(sticker.y) }
 
             Box(
                 modifier = Modifier
-                    .offset(offsetX.dp, offsetY.dp)
-                    .size(56.dp)
+                    // 渲染时将逻辑坐标乘以缩放比，还原为当前设备上的实际 dp offset
+                    .offset((offsetX * scaleX).dp, (offsetY * scaleY).dp)
+                    .size(STICKER_SIZE_DP.dp)
                     .pointerInput(sticker.id) {
                         detectDragGestures(
                             onDragStart = { },
@@ -107,8 +136,9 @@ fun StickerEditorCanvas(
                             onDragCancel = { },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                val newX = (offsetX + dragAmount.x / density).coerceIn(0f, 280f)
-                                val newY = (offsetY + dragAmount.y / density).coerceIn(0f, 120f)
+                                // 将物理像素位移转换为逻辑坐标增量：先除 density（→dp），再除 scale（→逻辑dp）
+                                val newX = (offsetX + dragAmount.x / density / scaleX).coerceIn(0f, maxLogicX)
+                                val newY = (offsetY + dragAmount.y / density / scaleY).coerceIn(0f, maxLogicY)
                                 offsetX = newX
                                 offsetY = newY
                                 stickers[index] = stickers[index].copy(x = newX, y = newY)

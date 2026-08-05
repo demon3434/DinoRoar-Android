@@ -376,7 +376,10 @@ fun LogCreateScreen(
                      // Clean multiline newlines and serialize stickers to the end of content
                      val cleanedContent = sanitizeMultilineText(content)
                      val cleanedOwnThoughts = sanitizeMultilineText(ownThoughts)
-                     val stickersStr = stickers.joinToString("") { "[sticker:${it.dinoId}:${it.x.toInt()},${it.y.toInt()}]" }
+                     val stickersStr = stickers.joinToString("") {
+                         // 保留一位小数精度，与解析端 toFloatOrNull() 完全兼容
+                         "[sticker:${it.dinoId}:${"%.1f".format(it.x)},${"%.1f".format(it.y)}]"
+                     }
                      val finalContent = cleanedContent + (if (stickersStr.isNotEmpty()) "\n" + stickersStr else "")
 
                      // Calculate and award egg energy
