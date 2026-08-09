@@ -70,13 +70,12 @@ fun PersonEditScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var hasLoadedInitial by rememberSaveable { mutableStateOf(false) }
 
-    // Load data only once per screen lifecycle
+    // 1. 仅在初次进入生命周期时，从数据库加载数据并初始化表单状态
     LaunchedEffect(personUuid, defaultCategoryUuid) {
         if (!hasLoadedInitial) {
             if (personUuid != "NEW") {
                 val p = repository.getPersonByUuid(personUuid)
                 if (p != null) {
-                    existingPerson = p
                     personName = p.name
                     personAbbrev = p.abbreviation
                     personRelation = p.relationship
@@ -89,6 +88,14 @@ fun PersonEditScreen(
                 personCategoryUuid = defaultCategoryUuid
             }
             hasLoadedInitial = true
+        }
+    }
+
+    // 2. 持续追踪并恢复 existingPerson 实体，不受 hasLoadedInitial 限制
+    // 确保在页面导航返回重建时，能安全恢复 existingPerson 状态而不破坏用户已填写的表单输入
+    LaunchedEffect(personUuid) {
+        if (personUuid != "NEW") {
+            existingPerson = repository.getPersonByUuid(personUuid)
         }
     }
 
@@ -398,6 +405,11 @@ fun PersonEditScreen(
                             if (targetCategoryUuid == null && allCategories.isNotEmpty()) {
                                 targetCategoryUuid = allCategories.firstOrNull { !it.isDeleted }?.uuid 
                                     ?: allCategories.firstOrNull()?.uuid
+                            }
+
+                            if (targetCategoryUuid == null) {
+                                Toast.makeText(context, "请先创建人物分类！所有正式关系人必须落座分类。", Toast.LENGTH_LONG).show()
+                                return@launch
                             }
 
                             val activePersons = repository.getAllActivePersons()

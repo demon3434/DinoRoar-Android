@@ -133,22 +133,7 @@ fun CategorySelectScreen(
                     )
                 }
 
-                // 2. "Unclassified" Option (Matches search empty, or search keyword containing "未")
-                val matchesUnclassified = searchKeyword.isBlank() || "未分类".contains(searchKeyword, ignoreCase = true)
-                if (matchesUnclassified) {
-                    item(key = "UNCLASSIFIED_OPTION") {
-                        val isSelected = currentCategoryUuid == null || currentCategoryUuid == "unclassified"
-                        CategorySelectItemRow(
-                            name = "未分类",
-                            indexPrefix = "",
-                            isSelected = isSelected,
-                            onClick = {
-                                CategorySelectorState.onCategorySelected?.invoke(null, "未分类")
-                                onNavigateBack()
-                            }
-                        )
-                    }
-                }
+
             }
         }
     }

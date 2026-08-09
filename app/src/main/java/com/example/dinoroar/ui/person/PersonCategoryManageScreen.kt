@@ -124,7 +124,6 @@ fun PersonCategoryManageScreen(
                             Icon(imageVector = Icons.Default.Refresh, contentDescription = "云端拉取同步", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-
                     IconButton(onClick = { isReorderMode = !isReorderMode }) {
                         Icon(
                             imageVector = if (isReorderMode) Icons.Default.Done else Icons.Default.SwapVert,
@@ -247,8 +246,6 @@ fun PersonCategoryManageScreen(
                 }
 
 
-
-                // 3. 渲染“一次性临时人物”折叠区 (核心防污染机制)
                 if (temporaryPersons.isNotEmpty()) {
                     item(key = "STATIC_TEMPORARY") {
                         Card(

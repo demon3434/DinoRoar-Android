@@ -599,6 +599,10 @@ fun PersonSelectScreen(
                     onClick = {
                         if (newFormalName.isNotBlank()) {
                             coroutineScope.launch {
+                                if (newFormalCategoryUuid == null) {
+                                    Toast.makeText(context, "请先在管理页面创建分类！所有正式关系人必须落座分类。", Toast.LENGTH_LONG).show()
+                                    return@launch
+                                }
                                 val pUuid = "p-" + UUID.randomUUID().toString()
                                 val timeStamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
                                 val newPerson = PersonEntity(
