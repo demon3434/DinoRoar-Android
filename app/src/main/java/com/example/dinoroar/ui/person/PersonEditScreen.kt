@@ -58,6 +58,7 @@ fun PersonEditScreen(
 
     // Query states
     val allCategories by repository.allCategories.collectAsStateWithLifecycle(initialValue = emptyList())
+    val deletedCategories by repository.deletedCategories.collectAsStateWithLifecycle(initialValue = emptyList())
     
     // Form States with rememberSaveable to survive navigation
     var personName by rememberSaveable { mutableStateOf("") }
@@ -236,7 +237,20 @@ fun PersonEditScreen(
                 ) {
                     Text("所属分类:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
-                    val selectedCategoryName = allCategories.find { it.uuid == personCategoryUuid }?.name ?: "未分类"
+                    val selectedCategoryName = remember(allCategories, deletedCategories, personCategoryUuid) {
+                        val activeCat = allCategories.find { it.uuid == personCategoryUuid }
+                        if (activeCat != null) {
+                            activeCat.name
+                        } else {
+                            val deletedCat = deletedCategories.find { it.uuid == personCategoryUuid }
+                            if (deletedCat != null) {
+                                "${deletedCat.name} (已停用)"
+                            } else {
+                                "无分类"
+                            }
+                        }
+                    }
+
 
                     Card(
                         colors = CardDefaults.cardColors(

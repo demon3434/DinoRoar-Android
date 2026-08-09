@@ -206,7 +206,7 @@ fun FilterBottomSheet(
                         )
 
                         personsByCategory.forEach { (catUuid, list) ->
-                            val categoryName = if (catUuid == null) "临时/未分类" else (categoryNameMap[catUuid] ?: "其他")
+                            val categoryName = if (catUuid == null) "其他" else (categoryNameMap[catUuid] ?: "其他")
                             val isGroupExpanded = categoryGroupExpanded[catUuid] ?: false
 
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

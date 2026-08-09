@@ -171,27 +171,29 @@ fun PersonSelectScreen(
     // Suggestions list for relationship
     val relationSuggestions = listOf("好朋友", "普通同学", "老师", "家长", "邻居")
 
-    val deletedCategoryUuids = remember(allCategories) {
-        allCategories.filter { it.isDeleted }.map { it.uuid }.toSet()
+    val activeCategoryUuids = remember(allCategories) {
+        allCategories.filter { !it.isDeleted }.map { it.uuid }.toSet()
     }
 
     // Filtered persons based on search query or category click
-    val rightPersons = remember(allPersons, recentPersons, searchQuery, activeCategoryUuid, deletedCategoryUuids) {
+    val rightPersons = remember(allPersons, recentPersons, searchQuery, activeCategoryUuid, activeCategoryUuids) {
         if (searchQuery.isNotBlank()) {
             // Global search bypasses classification selection
             allPersons.filter { person ->
                 !person.isTemporary && !person.isDeleted &&
-                (person.categoryUuid == null || !deletedCategoryUuids.contains(person.categoryUuid)) &&
+                person.categoryUuid != null && activeCategoryUuids.contains(person.categoryUuid) &&
                 (person.name.contains(searchQuery, ignoreCase = true) ||
                  person.abbreviation.contains(searchQuery, ignoreCase = true))
             }
         } else {
             when (activeCategoryUuid) {
                 "RECENT" -> recentPersons.filter { person ->
-                    !person.isDeleted && (person.categoryUuid == null || !deletedCategoryUuids.contains(person.categoryUuid))
+                    !person.isDeleted && !person.isTemporary &&
+                    person.categoryUuid != null && activeCategoryUuids.contains(person.categoryUuid)
                 }
                 "ALL" -> allPersons.filter { person ->
-                    !person.isTemporary && !person.isDeleted && (person.categoryUuid == null || !deletedCategoryUuids.contains(person.categoryUuid))
+                    !person.isTemporary && !person.isDeleted &&
+                    person.categoryUuid != null && activeCategoryUuids.contains(person.categoryUuid)
                 }
                 else -> allPersons.filter { person ->
                     !person.isTemporary && !person.isDeleted && person.categoryUuid == activeCategoryUuid
@@ -341,32 +343,6 @@ fun PersonSelectScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    coroutineScope.launch {
-                                        val tempUuid = "p-temp-" + UUID.randomUUID().toString()
-                                        val timeStamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
-                                        val tempPerson = PersonEntity(
-                                            uuid = tempUuid,
-                                            name = searchQuery.trim(),
-                                            abbreviation = PinyinUtils.getAbbreviation(searchQuery.trim()),
-                                            relationship = "临时路人",
-                                            isTemporary = true,
-                                            colorTag = "gray",
-                                            createdAt = timeStamp
-                                        )
-                                        repository.insertPerson(tempPerson)
-                                        currentSelectedUuids = currentSelectedUuids + tempUuid
-                                        searchQuery = ""
-                                        Toast.makeText(context, "已新增临时人: ${tempPerson.name}", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("一次性临时人", color = Color.White, fontSize = 12.sp)
-                            }
-
-                            Button(
-                                onClick = {
                                     newFormalName = searchQuery.trim()
                                     newFormalAbbrev = PinyinUtils.getAbbreviation(newFormalName)
                                     newFormalRelation = ""
@@ -375,7 +351,7 @@ fun PersonSelectScreen(
                                     showCreateFormalDialog = true
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("正式关系人", color = Color.White, fontSize = 12.sp)
                             }

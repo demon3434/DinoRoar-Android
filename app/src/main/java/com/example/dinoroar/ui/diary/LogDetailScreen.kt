@@ -898,7 +898,7 @@ fun LogDetailScreen(
                     // Category dropdown list
                     if (allCategories.isNotEmpty()) {
                         var expanded by remember { mutableStateOf(false) }
-                        val currentCategoryName = allCategories.find { it.uuid == promotePersonCategoryUuid }?.name ?: "未分类"
+                        val currentCategoryName = allCategories.find { it.uuid == promotePersonCategoryUuid }?.name ?: "选择分类"
                         Text("所属分类:", fontSize = 11.sp, color = Color.Gray)
                         Box {
                             OutlinedButton(
@@ -928,21 +928,27 @@ fun LogDetailScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (promotePersonName.isNotBlank()) {
-                            coroutineScope.launch {
-                                val updated = person.copy(
-                                    name = promotePersonName.trim(),
-                                    abbreviation = promotePersonAbbrev.uppercase(Locale.US),
-                                    relationship = promotePersonRelation.trim(),
-                                    categoryUuid = promotePersonCategoryUuid,
-                                    colorTag = promotePersonColor,
-                                    isTemporary = false, // 💡 转正！
-                                    isSynced = false
-                                )
-                                repository.insertPerson(updated)
-                                showPromotePersonDialog = null
-                                Toast.makeText(context, "人物已成功转正并归类！", Toast.LENGTH_SHORT).show()
-                            }
+                        if (promotePersonName.isBlank()) {
+                            Toast.makeText(context, "姓名不能为空！", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (promotePersonCategoryUuid == null) {
+                            Toast.makeText(context, "请选择人物分类！所有正式关系人必须指定分类。", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
+                        coroutineScope.launch {
+                            val updated = person.copy(
+                                name = promotePersonName.trim(),
+                                abbreviation = promotePersonAbbrev.uppercase(Locale.US),
+                                relationship = promotePersonRelation.trim(),
+                                categoryUuid = promotePersonCategoryUuid,
+                                colorTag = promotePersonColor,
+                                isTemporary = false, // 💡 转正！
+                                isSynced = false
+                            )
+                            repository.insertPerson(updated)
+                            showPromotePersonDialog = null
+                            Toast.makeText(context, "人物已成功转正并归类！", Toast.LENGTH_SHORT).show()
                         }
                     }
                 ) {
