@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -95,7 +97,7 @@ fun PersonCategoryManageScreen(
                 title = { Text("管理关系人与分类", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -264,7 +266,7 @@ fun PersonCategoryManageScreen(
                                         .clickable { isDeletedListExpanded = !isDeletedListExpanded }
                                   ) {
                                     Icon(
-                                        imageVector = if (isDeletedListExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+                                        imageVector = if (isDeletedListExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                         contentDescription = "fold"
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -814,7 +816,7 @@ fun CategorySection(
                                         }
                                     }
                                     Icon(
-                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                         contentDescription = "edit",
                                         tint = Color.Gray,
                                         modifier = Modifier.size(16.dp)

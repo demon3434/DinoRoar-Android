@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
@@ -192,7 +193,7 @@ fun LogDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = { onNavigateBack() }) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = neonAmber
                         )
@@ -353,7 +354,7 @@ fun LogDetailScreen(
                                         showPromotePersonDialog = person
                                         promotePersonName = person.name
                                         promotePersonAbbrev = com.example.dinoroar.ui.person.PinyinUtils.getAbbreviation(person.name)
-                                        promotePersonRelation = person.relationship ?: ""
+                                        promotePersonRelation = person.relationship
                                         promotePersonCategoryUuid = if (allCategories.isNotEmpty()) allCategories[0].uuid else null
                                         promotePersonColor = "red"
                                     }
@@ -378,7 +379,7 @@ fun LogDetailScreen(
                 }
             }
 
-            Divider(color = Color.Gray.copy(alpha = 0.2f))
+            HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
 
             // Parse stickers from content（使用 StickerViewerCanvas.kt 中的工具函数）
             val rawContent = log.content
