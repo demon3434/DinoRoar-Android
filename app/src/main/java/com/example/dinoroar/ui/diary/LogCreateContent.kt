@@ -70,6 +70,10 @@ fun LogCreateScreenContent(
     stickers: SnapshotStateList<StickerInfo>,
     stickerCacheMap: Map<Int, String>,
     serverBaseUrl: String,
+    canvasInstanceId: Int?,
+    canvasAspectRatio: String,
+    canvasImageUrl: String?,
+    onSelectCanvasClick: () -> Unit,
     onSelectStickerClick: () -> Unit,
 
     // ── 多媒体 ──
@@ -207,6 +211,10 @@ fun LogCreateScreenContent(
                     neonBlue = neonBlue,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
+                    canvasInstanceId = canvasInstanceId,
+                    canvasAspectRatio = canvasAspectRatio,
+                    canvasImageUrl = canvasImageUrl,
+                    onSelectCanvasClick = onSelectCanvasClick,
                     onSelectStickerClick = onSelectStickerClick
                 )
 

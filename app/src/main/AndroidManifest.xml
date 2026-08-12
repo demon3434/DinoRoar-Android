@@ -31,12 +31,28 @@
 
         <activity
             android:name=".ui.sticker.StickerExchangeActivity"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.DinoRoar"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.diary.CanvasExchangeActivity"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:theme="@style/Theme.DinoRoar"
             android:exported="false" />
 
         <activity
             android:name=".ui.sticker.StickerPickerActivity"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.DinoRoar"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.diary.CanvasPickerActivity"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:theme="@style/Theme.DinoRoar"
             android:exported="false" />

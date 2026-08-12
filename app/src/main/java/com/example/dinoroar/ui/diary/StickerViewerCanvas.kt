@@ -70,38 +70,86 @@ fun StickerViewerCanvas(
     serverBaseUrl: String,
     cardBg: Color,
     neonBlue: Color,
+    canvasInstanceId: Int?,
+    canvasAspectRatio: String,
+    canvasImageUrl: String?,
     modifier: Modifier = Modifier
 ) {
-    if (stickers.isEmpty()) return
+    if (stickers.isEmpty() && (canvasInstanceId == null || canvasInstanceId == -1)) return
 
-    // 用 onSizeChanged 捕获画布实际渲染像素尺寸，与 Editor 一致的逻辑坐标还原方案
     val density = LocalDensity.current.density
     var canvasSizePx by remember { mutableStateOf(IntSize.Zero) }
+
+    val parts = canvasAspectRatio.split(":")
+    val wPart = parts.getOrNull(0)?.toFloatOrNull() ?: 2f
+    val hPart = parts.getOrNull(1)?.toFloatOrNull() ?: 1f
+    val aspectFloat = wPart / hPart
+    val logicalHeight = STICKER_CANVAS_LOGICAL_W / aspectFloat
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .aspectRatio(aspectFloat)
             .clip(RoundedCornerShape(16.dp))
-            .background(cardBg.copy(alpha = 0.3f))
             .border(1.dp, neonBlue.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
             .onSizeChanged { canvasSizePx = it }
     ) {
-        // 将像素宽高转换为 dp，计算逻辑坐标缩放比（与 Editor 通用同一常量）
+        // 渲染画布底图背景
+        if (canvasInstanceId != null && canvasInstanceId != -1) {
+            if (!canvasImageUrl.isNullOrBlank()) {
+                val fullUrl = if (canvasImageUrl.startsWith("/static/")) serverBaseUrl + canvasImageUrl else canvasImageUrl
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(fullUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "背景画布",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                // 根据比例选择专属兜底图
+                val fallbackResId = when (canvasAspectRatio) {
+                    "16:9" -> com.example.dinoroar.R.drawable.canvas_fallback_16_9
+                    "4:3" -> com.example.dinoroar.R.drawable.canvas_fallback_4_3
+                    "1:1" -> com.example.dinoroar.R.drawable.canvas_fallback_1_1
+                    "2:1" -> com.example.dinoroar.R.drawable.canvas_fallback_2_1
+                    else -> com.example.dinoroar.R.drawable.canvas_fallback_2_1
+                }
+                Image(
+                    painter = painterResource(id = fallbackResId),
+                    contentDescription = "默认画布兜底",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(cardBg.copy(alpha = 0.4f))
+                )
+            }
+        } else {
+            // 没有背景画布，一片空白，仅展示纯色底色背景
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(cardBg.copy(alpha = 0.4f))
+            )
+        }
+
         val canvasW = if (canvasSizePx.width > 0) canvasSizePx.width / density else STICKER_CANVAS_LOGICAL_W
-        val canvasH = if (canvasSizePx.height > 0) canvasSizePx.height / density else STICKER_CANVAS_LOGICAL_H
+        val canvasH = if (canvasSizePx.height > 0) canvasSizePx.height / density else logicalHeight
         val scaleX = canvasW / STICKER_CANVAS_LOGICAL_W
-        val scaleY = canvasH / STICKER_CANVAS_LOGICAL_H
+        val scaleY = canvasH / logicalHeight
+        val maxLogicX = STICKER_CANVAS_LOGICAL_W - STICKER_SIZE_DP
+        val maxLogicY = logicalHeight - STICKER_SIZE_DP
+        val stickerPhysicalSizeDp = STICKER_SIZE_DP * scaleX
 
         stickers.forEach { sticker ->
             Box(
                 modifier = Modifier
-                    // 将保存的逻辑坐标还原为实际 dp offset，同时 coerceAtMost 防止老数据在窄屏上溢出
                     .offset(
-                        x = ((sticker.x * scaleX).coerceAtMost(canvasW - STICKER_SIZE_DP)).dp,
-                        y = ((sticker.y * scaleY).coerceAtMost(canvasH - STICKER_SIZE_DP)).dp
+                        x = (sticker.x.coerceIn(0f, maxLogicX) * scaleX).dp,
+                        y = (sticker.y.coerceIn(0f, maxLogicY) * scaleY).dp
                     )
-                    .size(STICKER_SIZE_DP.dp)
+                    .size(stickerPhysicalSizeDp.dp)
             ) {
                 val finalStickerId = sticker.dinoId.trim()
                 val configObj = stickersConfig.find { it.id.toString() == finalStickerId }

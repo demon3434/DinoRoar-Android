@@ -5,6 +5,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Embedded
 import androidx.room.Relation
 import androidx.room.Index
+import androidx.room.ColumnInfo
+import androidx.room.ForeignKey
 
 @Entity(tableName = "logs", indices = [Index(value = ["userId"])])
 data class LogEntity(
@@ -127,4 +129,74 @@ data class StickerEntity(
     val isDeleted: Boolean = false,
     val createdAt: String = ""
 )
+
+
+@Entity(tableName = "canvas_series")
+data class CanvasSeriesEntity(
+    @PrimaryKey val id: Int,
+    val name: String,
+    val sortOrder: Int = 0,
+    val isActive: Boolean = true,
+    val isDeleted: Boolean = false,
+    val createdAt: String = ""
+)
+
+@Entity(
+    tableName = "canvas_sets",
+    foreignKeys = [
+        ForeignKey(
+            entity = CanvasSeriesEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["series_id"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index(value = ["series_id"])]
+)
+data class CanvasSetEntity(
+    @PrimaryKey val id: Int,
+    @ColumnInfo(name = "series_id") val seriesId: Int?,
+    val name: String,
+    val description: String?,
+    val sortOrder: Int = 0,
+    val exchangePrice: Int = 50,
+    val isActive: Boolean = true,
+    val isDeleted: Boolean = false,
+    val createdAt: String = ""
+)
+
+@Entity(
+    tableName = "canvas_instances",
+    indices = [Index(value = ["canvas_set_id"])]
+)
+data class CanvasInstanceEntity(
+    @PrimaryKey val id: Int,
+    @ColumnInfo(name = "canvas_set_id") val canvasSetId: Int,
+    val aspectRatio: String, // "16:9", "4:3", "1:1", "2:1"
+    val imageUrl: String,
+    val width: Int = 1440,
+    val height: Int,
+    val isActive: Boolean = true,
+    val isDeleted: Boolean = false,
+    val createdAt: String = ""
+)
+
+@Entity(
+    tableName = "log_canvases",
+    foreignKeys = [
+        ForeignKey(
+            entity = LogEntity::class,
+            parentColumns = ["uuid"],
+            childColumns = ["log_uuid"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["canvas_instance_id"])]
+)
+data class LogCanvasEntity(
+    @PrimaryKey @ColumnInfo(name = "log_uuid") val logUuid: String,
+    @ColumnInfo(name = "canvas_instance_id") val canvasInstanceId: Int?,
+    @ColumnInfo(name = "canvas_aspect_ratio") val canvasAspectRatio: String // "16:9", "4:3", "1:1", "2:1"
+)
+
 

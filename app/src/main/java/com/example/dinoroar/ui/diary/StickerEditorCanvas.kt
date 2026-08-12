@@ -61,10 +61,21 @@ fun StickerEditorCanvas(
     cardBg: Color,
     neonBlue: Color,
     textSecondary: Color,
+    canvasInstanceId: Int?,
+    canvasAspectRatio: String,
+    canvasImageUrl: String?,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current.density
+
+    val parts = canvasAspectRatio.split(":")
+    val wPart = parts.getOrNull(0)?.toFloatOrNull() ?: 2f
+    val hPart = parts.getOrNull(1)?.toFloatOrNull() ?: 1f
+    val aspectFloat = wPart / hPart
+    val logicalHeight = STICKER_CANVAS_LOGICAL_W / aspectFloat
+
+
 
     // 拦截父级 verticalScroll 在拖拽贴纸时抢夺触控焦点
     val stickerDragNestedScrollConnection = remember {
@@ -79,40 +90,74 @@ fun StickerEditorCanvas(
         }
     }
 
-    // 用 onSizeChanged 捕获画布实际渲染像素尺寸，转换为 dp 后计算缩放比
-    // 比 BoxWithConstraints 更可靠（BoxWithConstraints 在 verticalScroll 内 maxHeight=Infinity）
     var canvasSizePx by remember { mutableStateOf(IntSize.Zero) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .aspectRatio(aspectFloat)
             .clip(RoundedCornerShape(12.dp))
-            .background(cardBg.copy(alpha = 0.4f))
             .border(1.dp, neonBlue.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
             .nestedScroll(stickerDragNestedScrollConnection)
-            .onSizeChanged { canvasSizePx = it }  // 第一次 layout 后即可得到真实像素宽高
+            .onSizeChanged { canvasSizePx = it }
     ) {
-        // 将像素宽高转换为 dp，用于计算缩放比（首帧前兜底为 LOGICAL 值，等同 scaleX=1）
-        val canvasW = if (canvasSizePx.width > 0) canvasSizePx.width / density else STICKER_CANVAS_LOGICAL_W
-        val canvasH = if (canvasSizePx.height > 0) canvasSizePx.height / density else STICKER_CANVAS_LOGICAL_H
-        // 逻辑坐标 → 实际 dp 的缩放比
-        val scaleX = canvasW / STICKER_CANVAS_LOGICAL_W
-        val scaleY = canvasH / STICKER_CANVAS_LOGICAL_H
-        // 贴纸图标是固定的 56 屏幕dp，需要除以 scaleX 转换为逻辑坐标再计算边界
-        // 这样无论 canvas 多宽，贴纸右/下边缘都精确贴到画布边缘
-        val maxLogicX = STICKER_CANVAS_LOGICAL_W - STICKER_SIZE_DP / scaleX
-        val maxLogicY = STICKER_CANVAS_LOGICAL_H - STICKER_SIZE_DP / scaleY
+        // 渲染画布底图背景
+        if (canvasInstanceId != null && canvasInstanceId != -1) {
+            if (!canvasImageUrl.isNullOrBlank()) {
+                val fullUrl = if (canvasImageUrl.startsWith("/static/")) serverBaseUrl + canvasImageUrl else canvasImageUrl
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(fullUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "背景画布",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                // 根据比例选择专属兜底图
+                val fallbackResId = when (canvasAspectRatio) {
+                    "16:9" -> com.example.dinoroar.R.drawable.canvas_fallback_16_9
+                    "4:3" -> com.example.dinoroar.R.drawable.canvas_fallback_4_3
+                    "1:1" -> com.example.dinoroar.R.drawable.canvas_fallback_1_1
+                    "2:1" -> com.example.dinoroar.R.drawable.canvas_fallback_2_1
+                    else -> com.example.dinoroar.R.drawable.canvas_fallback_2_1
+                }
+                Image(
+                    painter = painterResource(id = fallbackResId),
+                    contentDescription = "默认画布兜底",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(cardBg.copy(alpha = 0.4f))
+                )
+            }
+        } else {
+            // 没有背景画布，一片空白，仅展示纯色底色背景
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(cardBg.copy(alpha = 0.4f))
+            )
+        }
 
-        if (stickers.isEmpty()) {
+        val canvasW = if (canvasSizePx.width > 0) canvasSizePx.width / density else STICKER_CANVAS_LOGICAL_W
+        val canvasH = if (canvasSizePx.height > 0) canvasSizePx.height / density else logicalHeight
+        val scaleX = canvasW / STICKER_CANVAS_LOGICAL_W
+        val scaleY = canvasH / logicalHeight
+        val maxLogicX = STICKER_CANVAS_LOGICAL_W - STICKER_SIZE_DP
+        val maxLogicY = logicalHeight - STICKER_SIZE_DP
+        val stickerPhysicalSizeDp = STICKER_SIZE_DP * scaleX
+
+        if (stickers.isEmpty() && (canvasInstanceId == null || canvasInstanceId == -1)) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "这里是手账草地 🌴\n在下方选择恐龙贴纸，然后拖动它装饰你的日记吧！",
-                    color = textSecondary.copy(alpha = 0.6f),
-                    fontSize = 11.sp,
+                    text = "请在此铺设画布、装饰贴纸",
+                    color = textSecondary.copy(alpha = 0.5f),
+                    fontSize = 13.sp,
                     textAlign = TextAlign.Center,
                     fontFamily = FontFamily.Monospace
                 )
@@ -121,15 +166,15 @@ fun StickerEditorCanvas(
 
         stickers.forEachIndexed { index, sticker ->
             // offsetX/Y 保存的是逻辑坐标（与屏幕尺寸无关）
-            var offsetX by remember(sticker.id) { mutableStateOf(sticker.x) }
-            var offsetY by remember(sticker.id) { mutableStateOf(sticker.y) }
+            var offsetX by remember(sticker.id, sticker.x) { mutableStateOf(sticker.x) }
+            var offsetY by remember(sticker.id, sticker.y) { mutableStateOf(sticker.y) }
 
             Box(
                 modifier = Modifier
                     // 渲染时将逻辑坐标乘以缩放比，还原为当前设备上的实际 dp offset
                     .offset((offsetX * scaleX).dp, (offsetY * scaleY).dp)
-                    .size(STICKER_SIZE_DP.dp)
-                    .pointerInput(sticker.id) {
+                    .size(stickerPhysicalSizeDp.dp)
+                    .pointerInput(sticker.id, maxLogicX, maxLogicY, scaleX, scaleY) {
                         detectDragGestures(
                             onDragStart = { },
                             onDragEnd = { },

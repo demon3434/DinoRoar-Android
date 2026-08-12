@@ -237,3 +237,71 @@ interface StickerSeriesDao {
     @Query("DELETE FROM sticker_series")
     suspend fun deleteAll()
 }
+
+@Dao
+interface CanvasSeriesDao {
+    @Query("SELECT * FROM canvas_series WHERE isDeleted = 0 AND isActive = 1 ORDER BY sortOrder ASC")
+    fun getAllActiveSeriesFlow(): Flow<List<CanvasSeriesEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateAll(seriesList: List<CanvasSeriesEntity>)
+
+    @Query("DELETE FROM canvas_series")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface CanvasSetDao {
+    @Query("SELECT * FROM canvas_sets WHERE isDeleted = 0 AND isActive = 1 ORDER BY sortOrder ASC")
+    fun getAllActiveSetsFlow(): Flow<List<CanvasSetEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateAll(setsList: List<CanvasSetEntity>)
+
+    @Query("DELETE FROM canvas_sets")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface CanvasInstanceDao {
+    @Query("SELECT * FROM canvas_instances WHERE isDeleted = 0 AND isActive = 1")
+    fun getAllActiveInstancesFlow(): Flow<List<CanvasInstanceEntity>>
+
+    @Query("SELECT * FROM canvas_instances WHERE id = :id LIMIT 1")
+    suspend fun getInstanceById(id: Int): CanvasInstanceEntity?
+
+    @Query("SELECT * FROM canvas_instances WHERE canvas_set_id = :canvasSetId AND isDeleted = 0 AND isActive = 1")
+    suspend fun getInstancesForSet(canvasSetId: Int): List<CanvasInstanceEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateAll(instancesList: List<CanvasInstanceEntity>)
+
+    @Query("DELETE FROM canvas_instances")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface LogCanvasDao {
+    @Query("SELECT * FROM log_canvases WHERE log_uuid = :logUuid LIMIT 1")
+    suspend fun getLogCanvasByUuid(logUuid: String): LogCanvasEntity?
+
+    @Query("SELECT * FROM log_canvases WHERE log_uuid = :logUuid LIMIT 1")
+    fun getLogCanvasByUuidFlow(logUuid: String): Flow<LogCanvasEntity?>
+
+    @Query("""
+        SELECT ci.imageUrl FROM log_canvases lc
+        LEFT JOIN canvas_instances ci ON lc.canvas_instance_id = ci.id
+        WHERE lc.log_uuid = :logUuid LIMIT 1
+    """)
+    fun getCanvasImageUrlFlow(logUuid: String): Flow<String?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdate(logCanvas: LogCanvasEntity)
+
+    @Query("DELETE FROM log_canvases WHERE log_uuid = :logUuid")
+    suspend fun deleteLogCanvas(logUuid: String)
+
+    @Query("SELECT * FROM log_canvases ORDER BY log_uuid DESC LIMIT 1")
+    suspend fun getLastUsedLogCanvas(): LogCanvasEntity?
+}
+

@@ -514,6 +514,10 @@ fun LogCreateStickerSection(
     neonBlue: Color,
     textPrimary: Color,
     textSecondary: Color,
+    canvasInstanceId: Int?,
+    canvasAspectRatio: String,
+    canvasImageUrl: String?,
+    onSelectCanvasClick: () -> Unit,
     onSelectStickerClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -533,33 +537,50 @@ fun LogCreateStickerSection(
             serverBaseUrl = serverBaseUrl,
             cardBg = cardBg,
             neonBlue = neonBlue,
-            textSecondary = textSecondary
+            textSecondary = textSecondary,
+            canvasInstanceId = canvasInstanceId,
+            canvasAspectRatio = canvasAspectRatio,
+            canvasImageUrl = canvasImageUrl
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        val context = LocalContext.current
-        Button(
-            onClick = {
-                val connectivityManager = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
-                val activeNetwork = connectivityManager?.activeNetwork
-                val caps = connectivityManager?.getNetworkCapabilities(activeNetwork)
-                val isConnected = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-
-                if (isConnected) {
-                    onSelectStickerClick()
-                } else {
-                    android.widget.Toast.makeText(
-                        context,
-                        "🌐 当前处于离线状态，无法获取贴纸持有数量，暂不支持添加贴纸",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = neonBlue),
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.fillMaxWidth().height(48.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("🎨 装饰我的手账贴纸", color = Color.White, fontWeight = FontWeight.Bold)
+            Button(
+                onClick = onSelectCanvasClick,
+                colors = ButtonDefaults.buttonColors(containerColor = neonBlue),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.weight(1f).height(48.dp)
+            ) {
+                Text("🖼️ 背景画布", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+
+            val context = LocalContext.current
+            Button(
+                onClick = {
+                    val connectivityManager = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+                    val activeNetwork = connectivityManager?.activeNetwork
+                    val caps = connectivityManager?.getNetworkCapabilities(activeNetwork)
+                    val isConnected = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+
+                    if (isConnected) {
+                        onSelectStickerClick()
+                    } else {
+                        android.widget.Toast.makeText(
+                            context,
+                            "🌐 当前处于离线状态，无法获取贴纸持有数量，暂不支持添加贴纸",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = neonBlue),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.weight(1f).height(48.dp)
+            ) {
+                Text("🎨 装饰贴纸", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

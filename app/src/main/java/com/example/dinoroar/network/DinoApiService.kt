@@ -1,6 +1,7 @@
 package com.example.dinoroar.network
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -38,7 +39,9 @@ data class LogCreate(
     val own_thoughts: String? = null,
     val updated_at: String,
     val version: Int,
-    val person_uuids: List<String> = emptyList()
+    val person_uuids: List<String> = emptyList(),
+    val canvas_instance_id: Int? = null,
+    val canvas_aspect_ratio: String = "2:1"
 )
 
 @Serializable
@@ -71,7 +74,10 @@ data class LogResponse(
     val is_deleted: Boolean,
     val version: Int = 1,
     val person_uuids: List<String> = emptyList(),
-    val attachments: List<AttachmentResponse> = emptyList()
+    val attachments: List<AttachmentResponse> = emptyList(),
+    val canvas_instance_id: Int? = null,
+    val canvas_aspect_ratio: String = "2:1",
+    val canvas_image_url: String? = null
 )
 
 @Serializable
@@ -221,6 +227,22 @@ interface DinoApiService {
         @Body payload: StickerExchangeRequest
     ): StickerInventorySyncDto
 
+    @GET("api/canvases/inventory")
+    suspend fun getCanvasInventory(): CanvasSyncPayload
+
+    @POST("api/canvases/inventory")
+    suspend fun syncCanvasInventory(
+        @Body payload: CanvasSyncPayload
+    ): CanvasSyncPayload
+
+    @GET("api/canvases/config")
+    suspend fun getCanvasesConfig(): List<CanvasSeriesDto>
+
+    @POST("api/canvases/exchange")
+    suspend fun exchangeCanvas(
+        @Body payload: CanvasExchangeRequest
+    ): CanvasSyncPayload
+
     @Multipart
     @POST("api/stt/transcribe")
     suspend fun transcribeAudio(
@@ -287,3 +309,53 @@ data class StickerSeriesDto(
 data class StickerExchangeRequest(
     val sticker_id: Int
 )
+
+@Serializable
+data class CanvasInstanceDto(
+    val id: Int,
+    val canvas_set_id: Int,
+    @SerialName("aspect_ratio") val aspectRatio: String,
+    @SerialName("image_url") val imageUrl: String,
+    val width: Int = 1440,
+    val height: Int,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
+    @SerialName("created_at") val createdAt: String
+)
+
+@Serializable
+data class CanvasSetDto(
+    val id: Int,
+    val series_id: Int? = null,
+    val name: String,
+    val description: String? = null,
+    val sort_order: Int,
+    val exchange_price: Int = 50,
+    val is_active: Boolean = true,
+    val is_deleted: Boolean = false,
+    val created_at: String,
+    val instances: List<CanvasInstanceDto> = emptyList()
+)
+
+@Serializable
+data class CanvasSeriesDto(
+    val id: Int,
+    val name: String,
+    val sort_order: Int,
+    val is_active: Boolean = true,
+    val is_deleted: Boolean = false,
+    val created_at: String,
+    val sets: List<CanvasSetDto> = emptyList()
+)
+
+@Serializable
+data class CanvasSyncPayload(
+    val canvas_inventory: String = "",
+    val egg_energy: Int
+)
+
+@Serializable
+data class CanvasExchangeRequest(
+    val canvas_set_id: Int
+)
+

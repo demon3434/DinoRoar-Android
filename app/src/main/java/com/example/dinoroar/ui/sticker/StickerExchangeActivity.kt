@@ -14,16 +14,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -36,10 +33,10 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.dinoroar.data.local.SecurePrefs
+import com.example.dinoroar.data.local.ActivityStateTracker
 import com.example.dinoroar.network.DinoApiService
-import com.example.dinoroar.network.StickerExchangeRequest
-import com.example.dinoroar.network.StickerSeriesDto
 import com.example.dinoroar.network.StickerConfigDto
+import com.example.dinoroar.network.StickerSeriesDto
 import com.example.dinoroar.theme.DinoRoarTheme
 import com.example.dinoroar.theme.LocalAppColors
 import dagger.hilt.android.AndroidEntryPoint
@@ -55,12 +52,17 @@ class StickerExchangeActivity : ComponentActivity() {
     @Inject
     lateinit var securePrefs: SecurePrefs
 
+    override fun onStop() {
+        super.onStop()
+        ActivityStateTracker.isExternalActivityActive = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContent {
-            var themeId by remember { mutableStateOf(securePrefs.currentThemeId) }
+            val themeId = remember { securePrefs.currentThemeId }
             DinoRoarTheme(themeId = themeId) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -74,10 +76,6 @@ class StickerExchangeActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
     }
 }
 
@@ -98,22 +96,15 @@ fun StickerExchangeScreen(
     var seriesList by remember { mutableStateOf<List<StickerSeriesDto>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // 联动定位组件状态
     val leftListState = rememberLazyListState()
     val rightListState = rememberLazyListState()
 
-    // 购物车与确认状态
     val cart = remember { mutableStateMapOf<Int, Int>() }
     var showCartConfirmDialog by remember { mutableStateOf(false) }
     var showCartDrawer by remember { mutableStateOf(false) }
-    var isExchangingMultiple by remember { mutableStateOf(false) }
-
-    var showExchangeDialog by remember { mutableStateOf<StickerConfigDto?>(null) }
-    var isExchanging by remember { mutableStateOf(false) }
 
     val serverBaseUrl = remember { securePrefs.serverUrl?.removeSuffix("/") ?: "" }
 
-    // 解析出来的已拥有贴纸库存 Map: stickerId -> count
     val inventoryMap = remember(userInventory) {
         val map = mutableMapOf<Int, Int>()
         userInventory.split(",").filter { it.isNotBlank() }.forEach { item ->
@@ -131,12 +122,10 @@ fun StickerExchangeScreen(
 
     var isOffline by remember { mutableStateOf(false) }
 
-    // 动态拉取配置
     val loadConfig = {
         coroutineScope.launch {
             isLoading = true
             try {
-                // 1. 同步拉取游戏资产状态
                 val serverAsset = apiService.getStickerInventory()
                 securePrefs.stickerInventory = serverAsset.sticker_inventory
                 securePrefs.eggEnergy = serverAsset.egg_energy
@@ -144,23 +133,14 @@ fun StickerExchangeScreen(
                 eggEnergy = serverAsset.egg_energy
                 userInventory = serverAsset.sticker_inventory
 
-                // 2. 拉取全量嵌套系列贴纸数据
                 val list = apiService.getStickersConfig()
-                // 仅显示启用的系列
                 seriesList = list.filter { it.is_active && !it.is_deleted }
                 val cacheStr = list.flatMap { it.stickers }.joinToString(",") { "${it.id}:${it.image_url}" }
                 securePrefs.stickerConfigCache = cacheStr
                 isOffline = false
             } catch (e: Exception) {
                 isOffline = true
-                Log.w("StickerExchange", "Network load failed, falling back to local Room database: ${e.message}")
-                try {
-                    val db = com.example.dinoroar.data.local.DinoDatabase.MIGRATION_10_11
-                    val localSeriesList = securePrefs.stickerConfigCache.split(",").filter { it.isNotBlank() }
-                    Toast.makeText(context, "🌐 当前处于离线状态，已加载本地缓存贴纸", Toast.LENGTH_SHORT).show()
-                } catch (dbErr: Exception) {
-                    Log.e("StickerExchange", "Failed to load local DB: ${dbErr.message}")
-                }
+                Log.w("StickerExchange", "Network load failed, falling back to local: ${e.message}")
             } finally {
                 isLoading = false
             }
@@ -171,7 +151,6 @@ fun StickerExchangeScreen(
         loadConfig()
     }
 
-    // 联动控制
     val firstVisibleItemIndex by remember {
         derivedStateOf { rightListState.firstVisibleItemIndex }
     }
@@ -200,7 +179,7 @@ fun StickerExchangeScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "🎨 贴纸商店",
+                            text = "贴纸商城 🛒",
                             color = neonAmber,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
@@ -212,6 +191,22 @@ fun StickerExchangeScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = neonAmber)
+                        }
+                    },
+                    actions = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 16.dp)
+                        ) {
+                            Text("🥚", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$eggEnergy",
+                                color = neonAmber,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = darkBg)
@@ -329,7 +324,6 @@ fun StickerExchangeScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                // 左侧分类 RecyclerView (美团联动左栏)
                 LazyColumn(
                     state = leftListState,
                     modifier = Modifier
@@ -363,7 +357,6 @@ fun StickerExchangeScreen(
                     }
                 }
 
-                // 右侧大网格 (美团联动右栏)
                 LazyColumn(
                     state = rightListState,
                     modifier = Modifier
@@ -375,7 +368,6 @@ fun StickerExchangeScreen(
                 ) {
                     itemsIndexed(seriesList) { _, series ->
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            // 系列分隔标题
                             Text(
                                 text = "📁 ${series.name}",
                                 color = neonAmber,
@@ -394,7 +386,6 @@ fun StickerExchangeScreen(
                                     modifier = Modifier.padding(vertical = 8.dp)
                                 )
                             } else {
-                                // 模拟 Grid 实现一行 2 个
                                 stickers.chunked(2).forEach { rowStickers ->
                                     Row(
                                         modifier = Modifier
@@ -456,7 +447,6 @@ fun StickerExchangeScreen(
 
                                                         Spacer(modifier = Modifier.height(2.dp))
 
-                                                        // 贴纸图片加载
                                                         val localRes = com.example.dinoroar.ui.main.getStickerLocalResource(sticker.image_url)
                                                         val modelData: Any = if (localRes != null) localRes else {
                                                             if (sticker.image_url.startsWith("/static/")) serverBaseUrl + sticker.image_url else sticker.image_url
@@ -576,7 +566,6 @@ fun StickerExchangeScreen(
                                                     }
                                                 }
 
-                                                // 右上角角标，外漂到外层 Box 的右上角，不遮挡恐龙图案头部
                                                 if (ownedCount > 0) {
                                                     Box(
                                                         modifier = Modifier
@@ -599,7 +588,6 @@ fun StickerExchangeScreen(
                                             }
                                         }
 
-                                        // 占位（一行 2 个时空位处理）
                                         val remaining = 2 - rowStickers.size
                                         repeat(remaining) {
                                             Spacer(modifier = Modifier.weight(1f))
@@ -612,45 +600,43 @@ fun StickerExchangeScreen(
                 }
             }
         }
+    }
 
-        // 购物车抽屉层（已抽离至独立组件 StickerExchangeCartDrawer）
-        StickerExchangeCartDrawer(
-            showCartDrawer = showCartDrawer && cart.isNotEmpty(),
-            onDismiss = { showCartDrawer = false },
+    com.example.dinoroar.ui.sticker.StickerExchangeCartDrawer(
+        showCartDrawer = showCartDrawer && cart.isNotEmpty(),
+        onDismiss = { showCartDrawer = false },
+        cart = cart,
+        seriesList = seriesList,
+        serverBaseUrl = serverBaseUrl,
+        eggEnergy = eggEnergy,
+        cardBg = cardBg,
+        neonBlue = neonBlue,
+        neonRed = neonRed,
+        neonAmber = neonAmber,
+        textPrimary = textPrimary
+    )
+
+    if (showCartConfirmDialog) {
+        com.example.dinoroar.ui.sticker.StickerExchangeConfirmDialog(
             cart = cart,
             seriesList = seriesList,
-            serverBaseUrl = serverBaseUrl,
             eggEnergy = eggEnergy,
+            apiService = apiService,
+            securePrefs = securePrefs,
+            coroutineScope = coroutineScope,
+            onExchangeFinished = { updatedEggEnergy, updatedInventory ->
+                eggEnergy = updatedEggEnergy
+                userInventory = updatedInventory
+                cart.clear()
+            },
+            onDismiss = { showCartConfirmDialog = false },
             cardBg = cardBg,
-            neonBlue = neonBlue,
-            neonRed = neonRed,
             neonAmber = neonAmber,
-            textPrimary = textPrimary
+            neonRed = neonRed,
+            neonBlue = neonBlue,
+            neonGreen = neonGreen,
+            textPrimary = textPrimary,
+            textSecondary = textSecondary
         )
-
-        // 购物车批量结算 Dialog（已抽离至独立组件 StickerExchangeConfirmDialog）
-        if (showCartConfirmDialog) {
-            StickerExchangeConfirmDialog(
-                cart = cart,
-                seriesList = seriesList,
-                eggEnergy = eggEnergy,
-                apiService = apiService,
-                securePrefs = securePrefs,
-                coroutineScope = coroutineScope,
-                onExchangeFinished = { updatedEggEnergy, updatedInventory ->
-                    eggEnergy = updatedEggEnergy
-                    userInventory = updatedInventory
-                    cart.clear()
-                },
-                onDismiss = { showCartConfirmDialog = false },
-                cardBg = cardBg,
-                neonAmber = neonAmber,
-                neonRed = neonRed,
-                neonBlue = neonBlue,
-                neonGreen = neonGreen,
-                textPrimary = textPrimary,
-                textSecondary = textSecondary
-            )
-        }
     }
 }

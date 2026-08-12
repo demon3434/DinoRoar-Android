@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dinoroar.theme.LocalAppColors
+import com.example.dinoroar.ui.main.getDinoResource
 import java.io.File
 
 /**
@@ -270,5 +271,30 @@ fun parseMoodAndName(parts: List<String>, fullTitle: String): Pair<String, Strin
         }
     }
     return Pair(fullTitle, "")
+}
+
+/**
+ * 获取 11 档恐龙心情列表的助手方法，抽离硬编码以瘦身 UI
+ */
+fun getDinoMoodList(allDinoConfigs: List<com.example.dinoroar.data.local.DinoConfigEntity>): List<Triple<Int, Int, String>> {
+    return allDinoConfigs.map { config ->
+        val resId = getDinoResource(config.id)
+        val desc = "${config.moodLabel} ${config.name}\n${config.moodTip ?: ""}"
+        Triple(config.id, resId, desc)
+    }.ifEmpty {
+        listOf(
+            Triple(1, com.example.dinoroar.R.drawable.mood_triceratops, "快乐三角龙 😊 开心\n今天遇到了很棒的事，心里美滋滋的！"),
+            Triple(2, com.example.dinoroar.R.drawable.mood_pterodactyl_happy, "冲天翼手龙 🤩 兴奋\n太棒啦！我要起飞咯，整个人都兴奋起来了！"),
+            Triple(3, com.example.dinoroar.R.drawable.mood_t_rex_proud, "挺胸霸王龙 😎 得意\n哼哼，今天我超级棒，快给我竖个大拇指！"),
+            Triple(4, com.example.dinoroar.R.drawable.mood_brachiosaurus, "大眼睛雷龙 🌟 期待\n好期待明天呀，真希望时间能过得快一点！"),
+            Triple(5, com.example.dinoroar.R.drawable.mood_stegosaurus, "呆呆剑龙 😮 惊讶\n哇塞！真是太不可思议啦，惊掉下巴！"),
+            Triple(6, com.example.dinoroar.R.drawable.mood_velociraptor, "佛系迅猛龙 😐 一般\n平静轻松的一天，小恐龙也在打哈欠~"),
+            Triple(7, com.example.dinoroar.R.drawable.mood_ankylosaurus_scared, "缩壳甲龙 😰 紧张\n捏了一把汗，缩壳长出尖刺防卫一下"),
+            Triple(8, com.example.dinoroar.R.drawable.mood_pachycephalosaurus, "叹气肿头龙 🍃 遗憾\n唉…又撞疼了大光头，真可惜"),
+            Triple(9, com.example.dinoroar.R.drawable.mood_parasaurolophus_regret, "耷拉角副栉龙 😣 后悔\n如果当时我没有那么做，会不会更好呢…"),
+            Triple(10, com.example.dinoroar.R.drawable.mood_spinosaurus, "细雨棘龙 😭 伤心\n小雨哗啦啦，棘龙的大背鳍也像哭泣的小伞"),
+            Triple(11, com.example.dinoroar.R.drawable.mood_dilophosaurus, "怒火双脊龙 😡 愤怒\n吼！发怒的双脊龙褶伞张开，怒气冲天！")
+        )
+    }
 }
 

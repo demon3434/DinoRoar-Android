@@ -6,8 +6,12 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [LogEntity::class, AttachmentEntity::class, PersonEntity::class, LogPersonCrossRef::class, PersonCategoryEntity::class, DinoConfigEntity::class, StickerSeriesEntity::class, StickerEntity::class],
-    version = 13,
+    entities = [
+        LogEntity::class, AttachmentEntity::class, PersonEntity::class, LogPersonCrossRef::class, 
+        PersonCategoryEntity::class, DinoConfigEntity::class, StickerSeriesEntity::class, StickerEntity::class,
+        CanvasSeriesEntity::class, CanvasSetEntity::class, CanvasInstanceEntity::class, LogCanvasEntity::class
+    ],
+    version = 15,
     exportSchema = false
 )
 abstract class DinoDatabase : RoomDatabase() {
@@ -18,8 +22,131 @@ abstract class DinoDatabase : RoomDatabase() {
     abstract fun dinoConfigDao(): DinoConfigDao
     abstract fun stickerDao(): StickerDao
     abstract fun stickerSeriesDao(): StickerSeriesDao
+    abstract fun canvasSeriesDao(): CanvasSeriesDao
+    abstract fun canvasSetDao(): CanvasSetDao
+    abstract fun canvasInstanceDao(): CanvasInstanceDao
+    abstract fun logCanvasDao(): LogCanvasDao
 
     companion object {
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. 重构 canvas_instances 表：移除外键约束
+                // 1.1 创建 canvas_instances_new 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `canvas_instances_new` (
+                        `id` INTEGER NOT NULL, 
+                        `canvas_set_id` INTEGER NOT NULL, 
+                        `aspectRatio` TEXT NOT NULL, 
+                        `imageUrl` TEXT NOT NULL, 
+                        `width` INTEGER NOT NULL DEFAULT 1440, 
+                        `height` INTEGER NOT NULL, 
+                        `isActive` INTEGER NOT NULL DEFAULT 1, 
+                        `isDeleted` INTEGER NOT NULL DEFAULT 0, 
+                        `createdAt` TEXT NOT NULL DEFAULT '', 
+                        PRIMARY KEY(`id`)
+                    )
+                """)
+                // 1.2 复制数据
+                db.execSQL("""
+                    INSERT INTO `canvas_instances_new` (`id`, `canvas_set_id`, `aspectRatio`, `imageUrl`, `width`, `height`, `isActive`, `isDeleted`, `createdAt`)
+                    SELECT `id`, `canvas_set_id`, `aspectRatio`, `imageUrl`, `width`, `height`, `isActive`, `isDeleted`, `createdAt` FROM `canvas_instances`
+                """)
+                // 1.3 丢弃旧表并重命名新表
+                db.execSQL("DROP TABLE `canvas_instances`")
+                db.execSQL("ALTER TABLE `canvas_instances_new` RENAME TO `canvas_instances`")
+                // 1.4 重建索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_canvas_instances_canvas_set_id` ON `canvas_instances` (`canvas_set_id`)")
+
+                // 2. 重构 log_canvases 表：仅保留对 logs 表的外键约束
+                // 2.1 创建 log_canvases_new 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `log_canvases_new` (
+                        `log_uuid` TEXT NOT NULL, 
+                        `canvas_instance_id` INTEGER, 
+                        `canvas_aspect_ratio` TEXT NOT NULL DEFAULT '2:1', 
+                        PRIMARY KEY(`log_uuid`),
+                        FOREIGN KEY(`log_uuid`) REFERENCES `logs`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                // 2.2 复制数据
+                db.execSQL("""
+                    INSERT INTO `log_canvases_new` (`log_uuid`, `canvas_instance_id`, `canvas_aspect_ratio`)
+                    SELECT `log_uuid`, `canvas_instance_id`, `canvas_aspect_ratio` FROM `log_canvases`
+                """)
+                // 2.3 丢弃旧表并重命名新表
+                db.execSQL("DROP TABLE `log_canvases`")
+                db.execSQL("ALTER TABLE `log_canvases_new` RENAME TO `log_canvases`")
+                // 2.4 重建索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_log_canvases_canvas_instance_id` ON `log_canvases` (`canvas_instance_id`)")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. 创建 canvas_series 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `canvas_series` (
+                        `id` INTEGER NOT NULL, 
+                        `name` TEXT NOT NULL, 
+                        `sortOrder` INTEGER NOT NULL DEFAULT 0, 
+                        `isActive` INTEGER NOT NULL DEFAULT 1, 
+                        `isDeleted` INTEGER NOT NULL DEFAULT 0, 
+                        `createdAt` TEXT NOT NULL DEFAULT '', 
+                        PRIMARY KEY(`id`)
+                    )
+                """)
+                
+                // 2. 创建 canvas_sets 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `canvas_sets` (
+                        `id` INTEGER NOT NULL, 
+                        `series_id` INTEGER, 
+                        `name` TEXT NOT NULL, 
+                        `description` TEXT, 
+                        `sortOrder` INTEGER NOT NULL DEFAULT 0, 
+                        `exchangePrice` INTEGER NOT NULL DEFAULT 50, 
+                        `isActive` INTEGER NOT NULL DEFAULT 1, 
+                        `isDeleted` INTEGER NOT NULL DEFAULT 0, 
+                        `createdAt` TEXT NOT NULL DEFAULT '', 
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`series_id`) REFERENCES `canvas_series`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_canvas_sets_series_id` ON `canvas_sets` (`series_id`)")
+                
+                // 3. 创建 canvas_instances 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `canvas_instances` (
+                        `id` INTEGER NOT NULL, 
+                        `canvas_set_id` INTEGER NOT NULL, 
+                        `aspectRatio` TEXT NOT NULL, 
+                        `imageUrl` TEXT NOT NULL, 
+                        `width` INTEGER NOT NULL DEFAULT 1440, 
+                        `height` INTEGER NOT NULL, 
+                        `isActive` INTEGER NOT NULL DEFAULT 1, 
+                        `isDeleted` INTEGER NOT NULL DEFAULT 0, 
+                        `createdAt` TEXT NOT NULL DEFAULT '', 
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`canvas_set_id`) REFERENCES `canvas_sets`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_canvas_instances_canvas_set_id` ON `canvas_instances` (`canvas_set_id`)")
+                
+                // 4. 创建 log_canvases 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `log_canvases` (
+                        `log_uuid` TEXT NOT NULL, 
+                        `canvas_instance_id` INTEGER, 
+                        `canvas_aspect_ratio` TEXT NOT NULL DEFAULT '2:1', 
+                        PRIMARY KEY(`log_uuid`),
+                        FOREIGN KEY(`log_uuid`) REFERENCES `logs`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`canvas_instance_id`) REFERENCES `canvas_instances`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_log_canvases_canvas_instance_id` ON `log_canvases` (`canvas_instance_id`)")
+            }
+        }
+
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE logs ADD COLUMN userId TEXT NOT NULL DEFAULT ''")

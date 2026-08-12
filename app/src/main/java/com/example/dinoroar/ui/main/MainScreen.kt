@@ -37,13 +37,13 @@ import com.example.dinoroar.network.DinoApiService
 import com.example.dinoroar.theme.LocalAppColors
 import com.example.dinoroar.ui.main.components.*
 import kotlinx.coroutines.launch
-import com.example.dinoroar.ui.sticker.StickerExchangeScreen
+
 
 enum class MainTab {
     DASHBOARD,    // 首页看板
     DIARY_LIST,   // 我的日记
     PERSONS,      // 关系人管理
-    STICKER_SHOP  // 贴纸商店
+    HANDCRAFT_SHOP  // 手账商城
 }
 
 private data class NetworkLineState(
@@ -213,20 +213,20 @@ fun MainScreen(
                             )
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        NavigationDrawerItem(
-                            label = { Text("🎨 贴纸商店", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-                            selected = currentTab == MainTab.STICKER_SHOP,
-                            onClick = {
-                                currentTab = MainTab.STICKER_SHOP
-                                coroutineScope.launch { drawerState.close() }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                selectedContainerColor = neonGreen.copy(alpha = 0.15f),
-                                unselectedContainerColor = Color.Transparent,
-                                selectedTextColor = neonGreen,
-                                unselectedTextColor = textSecondary
-                            )
-                        )
+                         NavigationDrawerItem(
+                             label = { Text("🛍️ 手账商城", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+                             selected = currentTab == MainTab.HANDCRAFT_SHOP,
+                             onClick = {
+                                 currentTab = MainTab.HANDCRAFT_SHOP
+                                 coroutineScope.launch { drawerState.close() }
+                             },
+                             colors = NavigationDrawerItemDefaults.colors(
+                                 selectedContainerColor = neonGreen.copy(alpha = 0.15f),
+                                 unselectedContainerColor = Color.Transparent,
+                                 selectedTextColor = neonGreen,
+                                 unselectedTextColor = textSecondary
+                             )
+                         )
                     }
 
                     Column {
@@ -277,7 +277,7 @@ fun MainScreen(
                                 MainTab.DASHBOARD -> "首页看板"
                                 MainTab.DIARY_LIST -> "我的日记"
                                 MainTab.PERSONS -> "关系人管理"
-                                MainTab.STICKER_SHOP -> "贴纸商店"
+                                MainTab.HANDCRAFT_SHOP -> "手账商城"
                             },
                             color = neonAmber,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -290,7 +290,7 @@ fun MainScreen(
                     navigationIcon = {
                         val selectedFilterPersons by viewModel.selectedFilterPersonUuids.collectAsStateWithLifecycle()
 
-                        if (currentTab == MainTab.STICKER_SHOP) {
+                        if (currentTab == MainTab.HANDCRAFT_SHOP) {
                             IconButton(onClick = { currentTab = MainTab.DASHBOARD }) {
                                 Icon(
                                     imageVector = Icons.Default.ArrowBack,
@@ -422,7 +422,7 @@ fun MainScreen(
                 )
             },
             floatingActionButton = {
-                if (currentTab != MainTab.STICKER_SHOP) {
+                if (currentTab != MainTab.HANDCRAFT_SHOP) {
                     FloatingActionButton(
                         onClick = { onNavigateToCreate(null) },
                         containerColor = neonAmber,
@@ -512,15 +512,11 @@ fun MainScreen(
                         innerPadding = innerPadding
                     )
                 }
-                MainTab.STICKER_SHOP -> {
-                    StickerExchangeScreen(
-                        apiService = apiService,
-                        securePrefs = securePrefs,
-                        onBack = { currentTab = MainTab.DASHBOARD },
-                        showTopAppBar = false,
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                 MainTab.HANDCRAFT_SHOP -> {
+                     HandcraftShopMenuScreen(
+                         modifier = Modifier.padding(innerPadding)
+                     )
+                 }
             }
         }
     }

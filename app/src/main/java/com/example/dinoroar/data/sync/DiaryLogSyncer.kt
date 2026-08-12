@@ -17,12 +17,18 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 import com.example.dinoroar.data.local.SecurePrefs
+import com.example.dinoroar.data.local.LogCanvasDao
+import com.example.dinoroar.data.local.LogCanvasEntity
+import com.example.dinoroar.data.local.CanvasInstanceDao
+import com.example.dinoroar.data.local.CanvasInstanceEntity
 
 @Singleton
 class DiaryLogSyncer @Inject constructor(
     private val logDao: LogDao,
     private val attachmentDao: AttachmentDao,
     private val logPersonDao: LogPersonDao,
+    private val logCanvasDao: LogCanvasDao,
+    private val canvasInstanceDao: CanvasInstanceDao,
     private val apiService: DinoApiService,
     private val securePrefs: SecurePrefs
 ) {
@@ -49,6 +55,7 @@ class DiaryLogSyncer @Inject constructor(
             !it.isDeleted && (isManual || !it.isLocalOnly)
         }.map {
             val personUuids = logPersonDao.getPersonsForLog(it.uuid).map { p -> p.uuid }
+            val logCanvas = logCanvasDao.getLogCanvasByUuid(it.uuid)
             LogCreate(
                 uuid = it.uuid,
                 title = it.title,
@@ -58,7 +65,9 @@ class DiaryLogSyncer @Inject constructor(
                 own_thoughts = it.ownThoughts,
                 updated_at = it.updatedAt,
                 version = it.version,
-                person_uuids = personUuids
+                person_uuids = personUuids,
+                canvas_instance_id = logCanvas?.canvasInstanceId,
+                canvas_aspect_ratio = logCanvas?.canvasAspectRatio ?: "2:1"
             )
         }
 
@@ -74,6 +83,7 @@ class DiaryLogSyncer @Inject constructor(
                 logDao.hardDeleteLog(it.uuid)
                 attachmentDao.deleteAttachmentsForLog(it.uuid)
                 logPersonDao.deleteCrossRefsForLog(it.uuid)
+                logCanvasDao.deleteLogCanvas(it.uuid)
             }
         }
 
@@ -130,6 +140,34 @@ class DiaryLogSyncer @Inject constructor(
                         isLocalOnly = false
                     )
                     logDao.insertOrUpdate(logEntity)
+
+                    // 覆盖本地的日志背景画布关联
+                    val canvasInstanceId = serverLog.canvas_instance_id
+                    val imageUrl = serverLog.canvas_image_url
+                    if (canvasInstanceId != null && !imageUrl.isNullOrBlank()) {
+                        val dbInstance = canvasInstanceDao.getInstanceById(canvasInstanceId)
+                        if (dbInstance == null) {
+                            val virtualInstance = CanvasInstanceEntity(
+                                id = canvasInstanceId,
+                                canvasSetId = 3001, // 基础免费套件 (必定存在)
+                                aspectRatio = serverLog.canvas_aspect_ratio,
+                                imageUrl = imageUrl,
+                                width = 1440,
+                                height = 720,
+                                isActive = true,
+                                isDeleted = false,
+                                createdAt = serverLog.created_at ?: ""
+                            )
+                            canvasInstanceDao.insertOrUpdateAll(listOf(virtualInstance))
+                        }
+                    }
+
+                    val logCanvasEntity = LogCanvasEntity(
+                        logUuid = serverLog.uuid,
+                        canvasInstanceId = serverLog.canvas_instance_id,
+                        canvasAspectRatio = serverLog.canvas_aspect_ratio
+                    )
+                    logCanvasDao.insertOrUpdate(logCanvasEntity)
 
                     // 重新覆盖本地的日志-人物多对多关联
                     logPersonDao.deleteCrossRefsForLog(serverLog.uuid)
@@ -201,6 +239,7 @@ class DiaryLogSyncer @Inject constructor(
                 }
                 logDao.hardDeleteLog(local.uuid)
                 logPersonDao.deleteCrossRefsForLog(local.uuid)
+                logCanvasDao.deleteLogCanvas(local.uuid)
             }
         }
 

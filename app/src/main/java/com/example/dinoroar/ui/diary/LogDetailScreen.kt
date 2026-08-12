@@ -124,8 +124,15 @@ fun LogDetailScreen(
     var attachments by remember { mutableStateOf<List<AttachmentEntity>>(emptyList()) }
     val associatedPersons by repository.getPersonsForLogFlow(logUuid).collectAsStateWithLifecycle(initialValue = emptyList())
 
+    val logCanvas by repository.getLogCanvasByUuidFlow(logUuid).collectAsStateWithLifecycle(initialValue = null)
+    val canvasImageUrl by repository.getCanvasImageUrlFlow(logUuid).collectAsStateWithLifecycle(initialValue = null)
+
+    val canvasInstanceId = logCanvas?.canvasInstanceId
+    val canvasAspectRatio = logCanvas?.canvasAspectRatio ?: "2:1"
+
     LaunchedEffect(logUuid) {
         logWithConfig = repository.getLogWithConfigByUuid(logUuid)
+
         repository.getAttachmentsForLogFlow(logUuid).collect {
             attachments = it
         }
@@ -408,7 +415,10 @@ fun LogDetailScreen(
                 stickersConfig = stickersConfig,
                 serverBaseUrl = serverBaseUrl,
                 cardBg = appColors.cardBg,
-                neonBlue = neonBlue
+                neonBlue = neonBlue,
+                canvasInstanceId = canvasInstanceId,
+                canvasAspectRatio = canvasAspectRatio,
+                canvasImageUrl = canvasImageUrl
             )
 
             // 悄悄话

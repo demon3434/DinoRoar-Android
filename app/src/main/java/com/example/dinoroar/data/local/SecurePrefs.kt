@@ -215,6 +215,18 @@ class SecurePrefs @Inject constructor(
             sharedPrefs.edit().putString(key, value).apply()
         }
 
+    var canvasInventory: String
+        get() {
+            val user = username
+            val key = if (user.isBlank()) "canvas_inventory" else "canvas_inventory_$user"
+            return sharedPrefs.getString(key, "") ?: ""
+        }
+        set(value) {
+            val user = username
+            val key = if (user.isBlank()) "canvas_inventory" else "canvas_inventory_$user"
+            sharedPrefs.edit().putString(key, value).apply()
+        }
+
     var stickerConfigCache: String
         get() = sharedPrefs.getString("sticker_config_cache", "") ?: ""
         set(value) = sharedPrefs.edit().putString("sticker_config_cache", value).apply()

@@ -62,6 +62,12 @@ interface DataRepository {
     suspend fun getAllActiveDinoConfigs(): List<DinoConfigEntity>
     suspend fun syncDinoConfig(dinoConfigs: List<DinoConfigEntity>)
     suspend fun clearAllData()
+    suspend fun getLogCanvasByUuid(logUuid: String): com.example.dinoroar.data.local.LogCanvasEntity?
+    fun getLogCanvasByUuidFlow(logUuid: String): Flow<com.example.dinoroar.data.local.LogCanvasEntity?>
+    fun getCanvasImageUrlFlow(logUuid: String): Flow<String?>
+    suspend fun getCanvasInstanceById(instanceId: Int): com.example.dinoroar.data.local.CanvasInstanceEntity?
+    suspend fun getLastUsedLogCanvas(): com.example.dinoroar.data.local.LogCanvasEntity?
+    suspend fun insertLogCanvas(logCanvas: com.example.dinoroar.data.local.LogCanvasEntity)
 }
 
 @Singleton
@@ -72,6 +78,8 @@ class DefaultDataRepository @Inject constructor(
     private val personDao: PersonDao,
     private val logPersonDao: LogPersonDao,
     private val dinoConfigDao: DinoConfigDao,
+    private val canvasInstanceDao: com.example.dinoroar.data.local.CanvasInstanceDao,
+    private val logCanvasDao: com.example.dinoroar.data.local.LogCanvasDao,
     private val securePrefs: SecurePrefs
 ) : DataRepository {
 
@@ -257,5 +265,29 @@ class DefaultDataRepository @Inject constructor(
         database.withTransaction {
             database.clearAllTables()
         }
+    }
+
+    override suspend fun getLogCanvasByUuid(logUuid: String): com.example.dinoroar.data.local.LogCanvasEntity? {
+        return logCanvasDao.getLogCanvasByUuid(logUuid)
+    }
+
+    override fun getLogCanvasByUuidFlow(logUuid: String): Flow<com.example.dinoroar.data.local.LogCanvasEntity?> {
+        return logCanvasDao.getLogCanvasByUuidFlow(logUuid)
+    }
+
+    override fun getCanvasImageUrlFlow(logUuid: String): Flow<String?> {
+        return logCanvasDao.getCanvasImageUrlFlow(logUuid)
+    }
+
+    override suspend fun getCanvasInstanceById(instanceId: Int): com.example.dinoroar.data.local.CanvasInstanceEntity? {
+        return canvasInstanceDao.getInstanceById(instanceId)
+    }
+
+    override suspend fun getLastUsedLogCanvas(): com.example.dinoroar.data.local.LogCanvasEntity? {
+        return logCanvasDao.getLastUsedLogCanvas()
+    }
+
+    override suspend fun insertLogCanvas(logCanvas: com.example.dinoroar.data.local.LogCanvasEntity) {
+        logCanvasDao.insertOrUpdate(logCanvas)
     }
 }

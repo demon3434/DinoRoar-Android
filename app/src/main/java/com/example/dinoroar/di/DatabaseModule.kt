@@ -8,6 +8,10 @@ import com.example.dinoroar.data.local.LogDao
 import com.example.dinoroar.data.local.PersonDao
 import com.example.dinoroar.data.local.LogPersonDao
 import com.example.dinoroar.data.local.DinoConfigDao
+import com.example.dinoroar.data.local.CanvasSeriesDao
+import com.example.dinoroar.data.local.CanvasSetDao
+import com.example.dinoroar.data.local.CanvasInstanceDao
+import com.example.dinoroar.data.local.LogCanvasDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -39,7 +43,9 @@ object DatabaseModule {
             DinoDatabase.MIGRATION_7_8,
             DinoDatabase.MIGRATION_8_9,
             DinoDatabase.MIGRATION_10_11,
-            DinoDatabase.MIGRATION_11_12
+            DinoDatabase.MIGRATION_11_12,
+            DinoDatabase.MIGRATION_13_14,
+            DinoDatabase.MIGRATION_14_15
         )
         .addCallback(object : androidx.room.RoomDatabase.Callback() {
             override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
@@ -109,5 +115,29 @@ object DatabaseModule {
     @Singleton
     fun provideStickerSeriesDao(database: DinoDatabase): com.example.dinoroar.data.local.StickerSeriesDao {
         return database.stickerSeriesDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideCanvasSeriesDao(database: DinoDatabase): CanvasSeriesDao {
+        return database.canvasSeriesDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideCanvasSetDao(database: DinoDatabase): CanvasSetDao {
+        return database.canvasSetDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideCanvasInstanceDao(database: DinoDatabase): CanvasInstanceDao {
+        return database.canvasInstanceDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideLogCanvasDao(database: DinoDatabase): LogCanvasDao {
+        return database.logCanvasDao()
     }
 }
