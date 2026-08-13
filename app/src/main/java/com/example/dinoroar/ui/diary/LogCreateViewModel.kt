@@ -470,7 +470,7 @@ class LogCreateViewModel(
 
                 // 贴纸序列化为占位标签，精度设为 Locale.US 保证统一格式化为 "x.y" 格式
                 val stickersStr = stickers.joinToString("") {
-                    "[sticker:${it.dinoId}:${"%.1f".format(Locale.US, it.x)},${"%.1f".format(Locale.US, it.y)}]"
+                    "[sticker:${it.dinoId}:${"%.1f".format(Locale.US, it.x)},${"%.1f".format(Locale.US, it.y)},${"%.2f".format(Locale.US, it.scale)},${"%.1f".format(Locale.US, it.rotation)},${if (it.flipH) 1 else 0},${if (it.flipV) 1 else 0}]"
                 }
                 val finalContent = cleanedContent + (if (stickersStr.isNotEmpty()) "\n" + stickersStr else "")
 

@@ -70,6 +70,11 @@ class CanvasPickerActivity : ComponentActivity() {
     @Inject
     lateinit var canvasInstanceDao: CanvasInstanceDao
 
+    override fun onStop() {
+        super.onStop()
+        com.example.dinoroar.data.local.ActivityStateTracker.isExternalActivityActive = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -86,25 +91,27 @@ class CanvasPickerActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    CanvasPickerScreen(
-                        apiService = apiService,
-                        securePrefs = securePrefs,
-                        canvasSeriesDao = canvasSeriesDao,
-                        canvasSetDao = canvasSetDao,
-                        canvasInstanceDao = canvasInstanceDao,
-                        currentSelectedInstanceId = currentInstanceId,
-                        currentRatio = currentRatio,
-                        onCancel = { finish() },
-                        onSelect = { instanceId, ratio, url ->
-                            val data = Intent().apply {
-                                putExtra("selected_canvas_instance_id", instanceId)
-                                putExtra("selected_canvas_aspect_ratio", ratio)
-                                putExtra("selected_canvas_image_url", url)
+                    com.example.dinoroar.ui.lock.DinoLockWrapper(securePrefs = securePrefs) {
+                        CanvasPickerScreen(
+                            apiService = apiService,
+                            securePrefs = securePrefs,
+                            canvasSeriesDao = canvasSeriesDao,
+                            canvasSetDao = canvasSetDao,
+                            canvasInstanceDao = canvasInstanceDao,
+                            currentSelectedInstanceId = currentInstanceId,
+                            currentRatio = currentRatio,
+                            onCancel = { finish() },
+                            onSelect = { instanceId, ratio, url ->
+                                val data = Intent().apply {
+                                    putExtra("selected_canvas_instance_id", instanceId)
+                                    putExtra("selected_canvas_aspect_ratio", ratio)
+                                    putExtra("selected_canvas_image_url", url)
+                                }
+                                setResult(Activity.RESULT_OK, data)
+                                finish()
                             }
-                            setResult(Activity.RESULT_OK, data)
-                            finish()
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }

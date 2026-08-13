@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextAlign
 import com.example.dinoroar.data.local.PersonEntity
 import com.example.dinoroar.media.AudioRecorder
 import com.example.dinoroar.network.DinoApiService
@@ -521,6 +522,8 @@ fun LogCreateStickerSection(
     onSelectStickerClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var selectedSticker by remember { mutableStateOf<StickerInfo?>(null) }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = "🎨 装饰我的手账贴纸:",
@@ -540,8 +543,11 @@ fun LogCreateStickerSection(
             textSecondary = textSecondary,
             canvasInstanceId = canvasInstanceId,
             canvasAspectRatio = canvasAspectRatio,
-            canvasImageUrl = canvasImageUrl
+            canvasImageUrl = canvasImageUrl,
+            selectedSticker = selectedSticker,
+            onSelectedStickerChange = { selectedSticker = it }
         )
+
         Spacer(modifier = Modifier.height(10.dp))
 
         Row(

@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.graphicsLayer
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.dinoroar.ui.main.StickerInfo
@@ -36,14 +37,18 @@ val fallbackStickerResId = com.example.dinoroar.R.drawable.sticker_fallback_logo
  * 从日记内容字符串解析贴纸列表（[sticker:id:x,y] 格式）。
  */
 fun parseStickerList(rawContent: String): List<StickerInfo> {
-    val pattern = java.util.regex.Pattern.compile("\\[sticker:([^:]+):([0-9.-]+),([0-9.-]+)\\]")
+    val pattern = java.util.regex.Pattern.compile("\\[sticker:([^:]+):([0-9.-]+),([0-9.-]+)(?:,([0-9.-]+),([0-9.-]+),([0-1]),([0-1]))?\\]")
     val matcher = pattern.matcher(rawContent)
     val list = mutableListOf<StickerInfo>()
     while (matcher.find()) {
         val dinoId = matcher.group(1) ?: ""
         val x = matcher.group(2)?.toFloatOrNull() ?: 50f
         val y = matcher.group(3)?.toFloatOrNull() ?: 50f
-        list.add(StickerInfo(dinoId, x, y))
+        val scale = matcher.group(4)?.toFloatOrNull() ?: 1.0f
+        val rotation = matcher.group(5)?.toFloatOrNull() ?: 0.0f
+        val flipH = matcher.group(6)?.toIntOrNull() == 1
+        val flipV = matcher.group(7)?.toIntOrNull() == 1
+        list.add(StickerInfo(dinoId, x, y, scale, rotation, flipH, flipV))
     }
     return list
 }
@@ -143,13 +148,22 @@ fun StickerViewerCanvas(
         val stickerPhysicalSizeDp = STICKER_SIZE_DP * scaleX
 
         stickers.forEach { sticker ->
+            val xMin = Math.max(0f, 28f * (sticker.scale - 1f))
+            val xMax = STICKER_CANVAS_LOGICAL_W - 28f * (sticker.scale + 1f)
+            val yMin = Math.max(0f, 28f * (sticker.scale - 1f))
+            val yMax = logicalHeight - 28f * (sticker.scale + 1f)
             Box(
                 modifier = Modifier
                     .offset(
-                        x = (sticker.x.coerceIn(0f, maxLogicX) * scaleX).dp,
-                        y = (sticker.y.coerceIn(0f, maxLogicY) * scaleY).dp
+                        x = (sticker.x.coerceIn(xMin, xMax) * scaleX).dp,
+                        y = (sticker.y.coerceIn(yMin, yMax) * scaleY).dp
                     )
                     .size(stickerPhysicalSizeDp.dp)
+                    .graphicsLayer(
+                        scaleX = sticker.scale * (if (sticker.flipH) -1f else 1f),
+                        scaleY = sticker.scale * (if (sticker.flipV) -1f else 1f),
+                        rotationZ = sticker.rotation
+                    )
             ) {
                 val finalStickerId = sticker.dinoId.trim()
                 val configObj = stickersConfig.find { it.id.toString() == finalStickerId }

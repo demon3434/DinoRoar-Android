@@ -61,6 +61,11 @@ class StickerPickerActivity : ComponentActivity() {
     @Inject
     lateinit var securePrefs: SecurePrefs
 
+    override fun onStop() {
+        super.onStop()
+        com.example.dinoroar.data.local.ActivityStateTracker.isExternalActivityActive = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -72,18 +77,20 @@ class StickerPickerActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    StickerPickerScreen(
-                        apiService = apiService,
-                        securePrefs = securePrefs,
-                        onCancel = { finish() },
-                        onDone = { selectedIds ->
-                            val intent = Intent().apply {
-                                putStringArrayListExtra("selected_sticker_ids", ArrayList(selectedIds))
+                    com.example.dinoroar.ui.lock.DinoLockWrapper(securePrefs = securePrefs) {
+                        StickerPickerScreen(
+                            apiService = apiService,
+                            securePrefs = securePrefs,
+                            onCancel = { finish() },
+                            onDone = { selectedIds ->
+                                val intent = Intent().apply {
+                                    putStringArrayListExtra("selected_sticker_ids", ArrayList(selectedIds))
+                                }
+                                setResult(Activity.RESULT_OK, intent)
+                                finish()
                             }
-                            setResult(Activity.RESULT_OK, intent)
-                            finish()
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }

@@ -68,11 +68,13 @@ class StickerExchangeActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    StickerExchangeScreen(
-                        apiService = apiService,
-                        securePrefs = securePrefs,
-                        onBack = { finish() }
-                    )
+                    com.example.dinoroar.ui.lock.DinoLockWrapper(securePrefs = securePrefs) {
+                        StickerExchangeScreen(
+                            apiService = apiService,
+                            securePrefs = securePrefs,
+                            onBack = { finish() }
+                        )
+                    }
                 }
             }
         }

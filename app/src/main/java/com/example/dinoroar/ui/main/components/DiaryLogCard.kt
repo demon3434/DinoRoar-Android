@@ -89,7 +89,7 @@ fun DiaryLogCard(
 
     val stickers = remember(log.content) {
         val list = mutableListOf<String>()
-        val pattern = java.util.regex.Pattern.compile("\\[sticker:([^:]+):[0-9.-]+,[0-9.-]+\\]")
+        val pattern = java.util.regex.Pattern.compile("\\[sticker:([^:]+):[^\\]]+\\]")
         val matcher = pattern.matcher(log.content)
         while (matcher.find()) {
             val dinoId = matcher.group(1)
@@ -101,7 +101,7 @@ fun DiaryLogCard(
     }
 
     val cleanContent = remember(log.content) {
-        log.content.replace(Regex("\\[sticker:[^:]+:[0-9.-]+,[0-9.-]+\\]"), "").trim()
+        log.content.replace(Regex("\\[sticker:[^\\]]+\\]"), "").trim()
     }
 
     val appColors = LocalAppColors.current

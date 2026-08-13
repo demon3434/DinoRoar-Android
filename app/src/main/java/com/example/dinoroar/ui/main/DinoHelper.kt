@@ -10,6 +10,10 @@ data class StickerInfo(
     val dinoId: String,
     val x: Float,
     val y: Float,
+    val scale: Float = 1.0f,
+    val rotation: Float = 0.0f,
+    val flipH: Boolean = false,
+    val flipV: Boolean = false,
     val isNew: Boolean = false,
     val id: String = java.util.UUID.randomUUID().toString()
 )

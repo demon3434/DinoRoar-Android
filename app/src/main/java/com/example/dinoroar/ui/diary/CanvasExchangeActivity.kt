@@ -61,14 +61,16 @@ class CanvasExchangeActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    CanvasExchangeScreen(
-                        apiService = apiService,
-                        securePrefs = securePrefs,
-                        canvasSeriesDao = canvasSeriesDao,
-                        canvasSetDao = canvasSetDao,
-                        canvasInstanceDao = canvasInstanceDao,
-                        onBack = { finish() }
-                    )
+                    com.example.dinoroar.ui.lock.DinoLockWrapper(securePrefs = securePrefs) {
+                        CanvasExchangeScreen(
+                            apiService = apiService,
+                            securePrefs = securePrefs,
+                            canvasSeriesDao = canvasSeriesDao,
+                            canvasSetDao = canvasSetDao,
+                            canvasInstanceDao = canvasInstanceDao,
+                            onBack = { finish() }
+                        )
+                    }
                 }
             }
         }

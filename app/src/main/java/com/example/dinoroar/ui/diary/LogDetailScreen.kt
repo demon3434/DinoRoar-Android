@@ -52,8 +52,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.dinoroar.data.DataRepository
@@ -982,10 +984,29 @@ fun LogDetailScreen(
             File(context.cacheDir, "${att.uuid}_image.png")
         }
         val fileUri = Uri.fromFile(file)
+        val view = LocalView.current
         Dialog(
             onDismissRequest = { previewImageAttachment = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
         ) {
+            val window = (view.parent as? DialogWindowProvider)?.window
+            LaunchedEffect(window) {
+                window?.let { w ->
+                    w.setLayout(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    w.statusBarColor = android.graphics.Color.TRANSPARENT
+                    w.navigationBarColor = android.graphics.Color.TRANSPARENT
+                    
+                    val controller = androidx.core.view.WindowCompat.getInsetsController(w, view)
+                    controller.isAppearanceLightStatusBars = false
+                    controller.isAppearanceLightNavigationBars = false
+                }
+            }
             val fullBitmap = rememberUriImageForPreview(fileUri, true, context, maxW = null)
             var scale by remember { mutableStateOf(1f) }
             var offset by remember { mutableStateOf(Offset.Zero) }
