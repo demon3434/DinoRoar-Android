@@ -6,8 +6,10 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -52,13 +54,9 @@ class StickerExchangeActivity : ComponentActivity() {
     @Inject
     lateinit var securePrefs: SecurePrefs
 
-    override fun onStop() {
-        super.onStop()
-        ActivityStateTracker.isExternalActivityActive = false
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ActivityStateTracker.onExternalActivityStarted()
         enableEdgeToEdge()
 
         setContent {
@@ -79,6 +77,12 @@ class StickerExchangeActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ActivityStateTracker.onExternalActivityDestroyed()
+    }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -153,12 +157,24 @@ fun StickerExchangeScreen(
         loadConfig()
     }
 
+    var onlyUnowned by remember { mutableStateOf(false) }
+
+    val visibleSeriesList = remember(seriesList, inventoryMap, onlyUnowned) {
+        if (onlyUnowned) {
+            seriesList.filter { series ->
+                series.stickers.any { it.is_active && !it.is_deleted && (inventoryMap[it.id] ?: 0) == 0 }
+            }
+        } else {
+            seriesList
+        }
+    }
+
     val firstVisibleItemIndex by remember {
         derivedStateOf { rightListState.firstVisibleItemIndex }
     }
 
     LaunchedEffect(firstVisibleItemIndex) {
-        if (seriesList.isNotEmpty() && firstVisibleItemIndex in seriesList.indices) {
+        if (visibleSeriesList.isNotEmpty() && firstVisibleItemIndex in visibleSeriesList.indices) {
             leftListState.animateScrollToItem(firstVisibleItemIndex)
         }
     }
@@ -198,23 +214,53 @@ fun StickerExchangeScreen(
                     actions = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(end = 16.dp)
+                            modifier = Modifier.padding(end = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("🥚", fontSize = 16.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "$eggEnergy",
-                                color = neonAmber,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
+                            FilterChip(
+                                selected = onlyUnowned,
+                                onClick = { onlyUnowned = !onlyUnowned },
+                                label = {
+                                    Text(
+                                        text = if (onlyUnowned) "✓ 未拥有" else "未拥有",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (onlyUnowned) FontWeight.Bold else FontWeight.Normal,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                },
+                                shape = RoundedCornerShape(50),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = neonGreen.copy(alpha = 0.2f),
+                                    selectedLabelColor = neonGreen,
+                                    containerColor = Color.Transparent,
+                                    labelColor = textSecondary
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (onlyUnowned) neonGreen else textSecondary.copy(alpha = 0.3f)
+                                ),
+
+                                modifier = Modifier.height(30.dp)
                             )
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🥚", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "$eggEnergy",
+                                    color = neonAmber,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = darkBg)
                 )
             }
         },
+
         bottomBar = {
             if (cart.isNotEmpty()) {
                 val totalCost = cart.entries.sumOf { entry ->
@@ -311,14 +357,20 @@ fun StickerExchangeScreen(
             ) {
                 CircularProgressIndicator(color = neonBlue)
             }
-        } else if (seriesList.isEmpty()) {
+        } else if (visibleSeriesList.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("暂无可用系列分类", color = textSecondary, fontSize = 14.sp)
+                Text(
+                    text = if (onlyUnowned) "全馆贴纸均已拥有，太棒啦！ 🦖" else "暂无可用系列分类",
+                    color = textSecondary,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         } else {
             Row(
@@ -334,7 +386,7 @@ fun StickerExchangeScreen(
                         .background(cardBg.copy(alpha = 0.4f))
                         .border(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
-                    itemsIndexed(seriesList) { index, series ->
+                    itemsIndexed(visibleSeriesList) { index, series ->
                         val isSelected = firstVisibleItemIndex == index
                         Box(
                             modifier = Modifier
@@ -368,7 +420,7 @@ fun StickerExchangeScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    itemsIndexed(seriesList) { _, series ->
+                    itemsIndexed(visibleSeriesList) { _, series ->
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "📁 ${series.name}",
@@ -379,7 +431,8 @@ fun StickerExchangeScreen(
                                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                             )
 
-                            val stickers = series.stickers.filter { it.is_active && !it.is_deleted }
+                            val rawStickers = series.stickers.filter { it.is_active && !it.is_deleted }
+                            val stickers = if (onlyUnowned) rawStickers.filter { (inventoryMap[it.id] ?: 0) == 0 } else rawStickers
                             if (stickers.isEmpty()) {
                                 Text(
                                     text = "暂无贴纸",
@@ -388,6 +441,7 @@ fun StickerExchangeScreen(
                                     modifier = Modifier.padding(vertical = 8.dp)
                                 )
                             } else {
+
                                 stickers.chunked(2).forEach { rowStickers ->
                                     Row(
                                         modifier = Modifier
@@ -422,19 +476,49 @@ fun StickerExchangeScreen(
                                                             .padding(start = 3.dp, end = 3.dp, top = 4.dp, bottom = 4.dp),
                                                         horizontalAlignment = Alignment.CenterHorizontally
                                                     ) {
+                                                        val isOnSale = sticker.is_on_sale && (sticker.original_price != null && sticker.original_price > sticker.exchange_price)
                                                         Row(
                                                             modifier = Modifier
                                                                 .fillMaxWidth()
-                                                                .padding(start = 0.dp, end = 0.dp, top = 2.dp),
+                                                                .padding(start = 2.dp, end = 2.dp, top = 2.dp),
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
-                                                            Text(
-                                                                text = "🥚${sticker.exchange_price}",
-                                                                color = neonAmber,
-                                                                fontSize = 11.sp,
-                                                                fontWeight = FontWeight.ExtraBold
-                                                            )
-                                                            Spacer(modifier = Modifier.width(3.dp))
+                                                            if (isOnSale && sticker.original_price != null) {
+                                                                // 优惠后价格和原价上下分布，防止横向过长挤占贴纸标题
+                                                                Column(
+                                                                    horizontalAlignment = Alignment.Start,
+                                                                    verticalArrangement = Arrangement.Center
+                                                                ) {
+                                                                    Text(
+                                                                        text = "🥚${sticker.exchange_price}",
+                                                                        color = Color(0xFF8B5CF6),
+                                                                        fontSize = 11.sp,
+                                                                        fontWeight = FontWeight.Black,
+                                                                        fontFamily = FontFamily.Monospace,
+                                                                        lineHeight = 12.sp
+                                                                    )
+                                                                    Text(
+                                                                        text = "${sticker.original_price}",
+                                                                        textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
+                                                                        color = textSecondary.copy(alpha = 0.55f),
+                                                                        fontSize = 8.sp,
+                                                                        fontFamily = FontFamily.Monospace,
+                                                                        lineHeight = 9.sp,
+                                                                        modifier = Modifier.padding(start = 12.dp) // 对应蛋图标后的偏移
+                                                                    )
+                                                                }
+                                                            } else {
+                                                                Text(
+                                                                    text = "🥚${sticker.exchange_price}",
+                                                                    color = neonAmber,
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                    fontFamily = FontFamily.Monospace
+                                                                )
+                                                            }
+
+                                                            Spacer(modifier = Modifier.width(4.dp))
+
                                                             Text(
                                                                 text = sticker.name,
                                                                 color = textPrimary,
@@ -446,6 +530,8 @@ fun StickerExchangeScreen(
                                                                 modifier = Modifier.weight(1f)
                                                             )
                                                         }
+
+
 
                                                         Spacer(modifier = Modifier.height(2.dp))
 
@@ -572,23 +658,38 @@ fun StickerExchangeScreen(
                                                     Box(
                                                         modifier = Modifier
                                                             .align(Alignment.TopEnd)
-                                                            .offset(x = 4.dp, y = (-4).dp)
-                                                            .clip(RoundedCornerShape(50))
-                                                            .background(neonRed)
-                                                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                                                            .offset(x = 3.dp, y = (-3).dp)
+                                                            .width(24.dp)
+                                                            .height(14.dp)
+                                                            .clip(RoundedCornerShape(7.dp))
+                                                            .background(Color(0xFFFF5252))
+                                                            .border(0.5.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(7.dp)),
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         Text(
                                                             text = if (ownedCount > 99) "99+" else ownedCount.toString(),
                                                             color = Color.White,
-                                                            fontSize = 8.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontFamily = FontFamily.Monospace
+                                                            fontSize = 8.5.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                            lineHeight = 10.sp,
+                                                            style = androidx.compose.ui.text.TextStyle(
+                                                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                                                    includeFontPadding = false
+                                                                ),
+                                                                lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                                                    alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                                                    trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both
+                                                                )
+                                                            )
                                                         )
                                                     }
                                                 }
+
                                             }
                                         }
+
 
                                         val remaining = 2 - rowStickers.size
                                         repeat(remaining) {

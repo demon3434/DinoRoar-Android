@@ -234,14 +234,27 @@ fun StickerExchangeConfirmDialog(
         val st = seriesList.flatMap { it.stickers }.find { it.id == entry.key }
         (st?.exchange_price ?: 0) * entry.value
     }
+    val totalOriginalCost = cart.entries.sumOf { entry ->
+        val st = seriesList.flatMap { it.stickers }.find { it.id == entry.key }
+        (st?.original_price ?: st?.exchange_price ?: 0) * entry.value
+    }
+    val totalSaved = totalOriginalCost - totalCost
+    val isSaleActive = totalSaved > 0
     val totalQty = cart.values.sum()
+
+    val dialogTitle = if (isSaleActive) "🎉 节日特惠结算" else "🛒 贴纸结算确认"
+    val dialogMessage = if (isSaleActive) {
+        "✨ 本次共选购 $totalQty 张贴纸\n\n原价：$totalOriginalCost 蛋能量\n特惠实付：$totalCost 蛋能量\n🎉 节日大促为您立省 $totalSaved 蛋能量！\n\n是否确认立即结算？"
+    } else {
+        "本次共购买 $totalQty 张贴纸，将消耗 🥚 $totalCost 蛋能量。是否确认结算？"
+    }
 
     AlertDialog(
         onDismissRequest = { if (!isExchangingMultiple) onDismiss() },
         title = {
             Text(
-                text = "🛒 贴纸结算确认",
-                color = neonAmber,
+                text = dialogTitle,
+                color = if (isSaleActive) Color(0xFF8B5CF6) else neonAmber,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
@@ -249,14 +262,20 @@ fun StickerExchangeConfirmDialog(
         },
         text = {
             Text(
-                text = "本次共购买 $totalQty 张贴纸，将消耗 $totalCost 蛋能量。是否确认结算？",
+                text = dialogMessage,
                 color = textPrimary,
-                fontSize = 14.sp
+                fontSize = 13.sp,
+                lineHeight = 18.sp
             )
         },
         confirmButton = {
             Button(
                 onClick = {
+                    if (securePrefs.serverUrl.isNullOrBlank()) {
+                        Toast.makeText(context, "⚠️ 尚未连接服务端，无法进行在线兑换", Toast.LENGTH_SHORT).show()
+                        onDismiss()
+                        return@Button
+                    }
                     if (eggEnergy < totalCost) {
                         Toast.makeText(context, "蛋能量不足以完成结算哦 🥚", Toast.LENGTH_SHORT).show()
                         onDismiss()
@@ -279,7 +298,7 @@ fun StickerExchangeConfirmDialog(
                                     currentInventory = syncAsset.sticker_inventory
                                 }
                             }
-                            Toast.makeText(context, "结算完成，已成功加入你的库存！", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "🎉 结算完成，已成功加入你的库存！", Toast.LENGTH_SHORT).show()
                             onExchangeFinished(currentEggEnergy, currentInventory)
                         } catch (e: Exception) {
                             Toast.makeText(context, "部分或全部商品结算失败: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -289,13 +308,13 @@ fun StickerExchangeConfirmDialog(
                         }
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = neonRed),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isSaleActive) Color(0xFF8B5CF6) else neonRed),
                 enabled = !isExchangingMultiple
             ) {
                 if (isExchangingMultiple) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
                 } else {
-                    Text("确定", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(if (isSaleActive) "✨ 立即结算" else "确定", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         },
@@ -314,3 +333,4 @@ fun StickerExchangeConfirmDialog(
         )
     )
 }
+

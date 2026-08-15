@@ -254,11 +254,14 @@ fun LogDetailScreen(
             )
 
             // 时间展示
-            val incidentDateFormatted = try {
-                log.incidentDate.replace("T", " ").substring(0, 19)
-            } catch (e: Exception) { log.incidentDate }
-            val updatedAtFormatted = formatUtcToLocal(log.updatedAt)
-            val isEdited = log.incidentDate != log.updatedAt && log.updatedAt.isNotBlank() && incidentDateFormatted != updatedAtFormatted
+            val incidentDateFormatted = formatLogDateTime(log.incidentDate)
+            val updatedAtFormatted = formatLogDateTime(log.updatedAt)
+            val incidentDateObj = parseLogDate(log.incidentDate)
+            val updatedAtObj = parseLogDate(log.updatedAt)
+            val isEdited = log.version > 1 &&
+                           incidentDateObj != null &&
+                           updatedAtObj != null &&
+                           (updatedAtObj.time - incidentDateObj.time > 10000L)
 
             Column {
                 Text(
@@ -277,6 +280,7 @@ fun LogDetailScreen(
                     )
                 }
             }
+
 
             // 心情与恐龙
             Card(
@@ -1168,25 +1172,36 @@ private fun rememberVideoThumbnailForPreview(uri: Uri, fileExists: Boolean, cont
     return bitmap
 }
 
-private fun formatUtcToLocal(utcTime: String): String {
-    if (utcTime.isBlank()) return ""
-    val clean = utcTime.replace("T", " ")
+private fun parseLogDate(timeStr: String?): java.util.Date? {
+    if (timeStr.isNullOrBlank()) return null
+    val clean = timeStr.trim().replace("T", " ")
     val formats = listOf(
         "yyyy-MM-dd HH:mm:ss.SSSSSS",
         "yyyy-MM-dd HH:mm:ss.SSS",
-        "yyyy-MM-dd HH:mm:ss"
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd HH:mm",
+        "yyyy-MM-dd"
     )
+    val isUtc = timeStr.endsWith("Z", ignoreCase = true) || timeStr.contains("+00:00")
     for (fmt in formats) {
         try {
             val sdf = java.text.SimpleDateFormat(fmt, java.util.Locale.US)
-            sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
-            val date = sdf.parse(clean)
-            if (date != null) {
-                val localSdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
-                localSdf.timeZone = java.util.TimeZone.getDefault()
-                return localSdf.format(date)
+            if (isUtc) {
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            } else {
+                sdf.timeZone = java.util.TimeZone.getDefault()
             }
+            val date = sdf.parse(clean.replace("Z", "").substringBefore("+"))
+            if (date != null) return date
         } catch (e: Exception) {}
     }
-    return utcTime
+    return null
 }
+
+private fun formatLogDateTime(timeStr: String?): String {
+    val date = parseLogDate(timeStr) ?: return timeStr ?: ""
+    val localSdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+    localSdf.timeZone = java.util.TimeZone.getDefault()
+    return localSdf.format(date)
+}
+

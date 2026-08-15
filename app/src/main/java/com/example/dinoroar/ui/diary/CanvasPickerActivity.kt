@@ -70,13 +70,9 @@ class CanvasPickerActivity : ComponentActivity() {
     @Inject
     lateinit var canvasInstanceDao: CanvasInstanceDao
 
-    override fun onStop() {
-        super.onStop()
-        com.example.dinoroar.data.local.ActivityStateTracker.isExternalActivityActive = false
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.example.dinoroar.data.local.ActivityStateTracker.onExternalActivityStarted()
         enableEdgeToEdge()
 
         val currentInstanceId = intent.getIntExtra("current_canvas_instance_id", -1).let {
@@ -111,10 +107,16 @@ class CanvasPickerActivity : ComponentActivity() {
                                 finish()
                             }
                         )
+
                     }
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        com.example.dinoroar.data.local.ActivityStateTracker.onExternalActivityDestroyed()
     }
 }
 
@@ -175,8 +177,17 @@ fun CanvasPickerScreen(
     val leftListState = rememberLazyListState()
     val rightListState = rememberLazyListState()
 
-    val activeSeries = remember(seriesList) {
-        seriesList.sortedBy { it.sortOrder }
+    var onlyOwned by remember { mutableStateOf(true) }
+
+    val activeSeries = remember(seriesList, setsList, unlockedSetIds, onlyOwned) {
+        val sorted = seriesList.sortedBy { it.sortOrder }
+        if (onlyOwned) {
+            sorted.filter { series ->
+                setsList.any { it.seriesId == series.id && it.id in unlockedSetIds }
+            }
+        } else {
+            sorted
+        }
     }
 
     val firstVisibleItemIndex by remember {
@@ -188,6 +199,7 @@ fun CanvasPickerScreen(
             leftListState.animateScrollToItem(firstVisibleItemIndex)
         }
     }
+
 
     // 从网络同步最新的画布资产和用户库存
     fun syncFromNetwork() {
@@ -239,7 +251,6 @@ fun CanvasPickerScreen(
                 canvasSetDao.insertOrUpdateAll(newSets)
                 canvasInstanceDao.insertOrUpdateAll(newInstances)
 
-                // 2. 同步已购资产和能量数
                 val inventory = apiService.getCanvasInventory()
                 securePrefs.canvasInventory = inventory.canvas_inventory
                 securePrefs.eggEnergy = inventory.egg_energy
@@ -253,11 +264,25 @@ fun CanvasPickerScreen(
         }
     }
 
-    // 监听生命周期，从 Web 端商城购买后返回自动刷新
+    LaunchedEffect(Unit) {
+        syncFromNetwork()
+    }
+
+    val appColors = LocalAppColors.current
+    val darkBg = appColors.darkBg
+    val cardBg = appColors.cardBg
+    val neonBlue = appColors.neonBlue
+    val neonAmber = appColors.neonAmber
+    val neonGreen = appColors.neonGreen
+    val textPrimary = appColors.textPrimary
+    val textSecondary = appColors.textSecondary
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                userInventory = securePrefs.canvasInventory
+                eggEnergy = securePrefs.eggEnergy
                 syncFromNetwork()
             }
         }
@@ -267,26 +292,47 @@ fun CanvasPickerScreen(
         }
     }
 
-    val appColors = LocalAppColors.current
-    val darkBg = appColors.darkBg
-    val cardBg = appColors.cardBg
-    val neonBlue = appColors.neonBlue
-    val neonAmber = appColors.neonAmber
-    val textPrimary = appColors.textPrimary
-    val textSecondary = appColors.textSecondary
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "🖼️ 我的画布",
-                        color = neonAmber,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "🖼️ 我的画布",
+                            color = neonAmber,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, neonAmber.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    text = "🥚 $eggEnergy",
+                                    color = neonAmber,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                if (isSyncing) {
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    CircularProgressIndicator(modifier = Modifier.size(8.dp), strokeWidth = 1.dp, color = neonAmber)
+                                }
+                            }
+                        }
+                    }
                 },
+
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(
@@ -297,6 +343,31 @@ fun CanvasPickerScreen(
                     }
                 },
                 actions = {
+                    FilterChip(
+                        selected = onlyOwned,
+                        onClick = { onlyOwned = !onlyOwned },
+                        label = {
+                            Text(
+                                text = if (onlyOwned) "✓ 已拥有" else "已拥有",
+                                fontSize = 11.sp,
+                                fontWeight = if (onlyOwned) FontWeight.Bold else FontWeight.Normal,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        },
+                        shape = RoundedCornerShape(50),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = neonGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = neonGreen,
+                            containerColor = Color.Transparent,
+                            labelColor = textSecondary
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (onlyOwned) neonGreen else textSecondary.copy(alpha = 0.3f)
+                        ),
+                        modifier = Modifier.height(30.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
                             val intent = Intent(context, com.example.dinoroar.ui.diary.CanvasExchangeActivity::class.java)
@@ -336,8 +407,8 @@ fun CanvasPickerScreen(
                     }
                     Text(
                         text = selectionText,
-                        color = neonAmber,
-                        fontSize = 13.sp,
+                        color = textPrimary,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -348,31 +419,33 @@ fun CanvasPickerScreen(
                     ) {
                         Button(
                             onClick = {
-                                // 移除背景，点击确定
-                                onSelect(-1, selectedRatio, "")
+                                selectedSetId = null
+                                onSelect(0, "2:1", "")
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Gray.copy(alpha = 0.3f)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Gray.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).height(44.dp)
                         ) {
-                            Text("🚫 移除背景", color = textPrimary, fontSize = 13.sp)
+                            Text("🚫 移除背景", color = textPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                         Button(
                             onClick = {
                                 if (selectedSetId != null) {
-                                    val activeInstance = instancesList.find { it.canvasSetId == selectedSetId && it.aspectRatio == selectedRatio }
-                                    val instId = activeInstance?.id ?: -1
-                                    val instUrl = activeInstance?.imageUrl ?: ""
-                                    onSelect(instId, selectedRatio, instUrl)
+                                    val instance = instancesList.find { it.canvasSetId == selectedSetId && it.aspectRatio == selectedRatio }
+                                    if (instance != null) {
+                                        onSelect(instance.id, instance.aspectRatio, instance.imageUrl)
+                                    } else {
+                                        onCancel()
+                                    }
                                 } else {
-                                    onSelect(-1, selectedRatio, "")
+                                    onSelect(0, "2:1", "")
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = neonBlue),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).height(44.dp)
                         ) {
-                            Text("确定 ✔", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("确定 ✔", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -380,57 +453,18 @@ fun CanvasPickerScreen(
         },
         containerColor = darkBg
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // 蛋能量展示 & 网络刷新状态
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                    .background(cardBg.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                    .border(1.dp, neonBlue.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "🥚 蛋能量: $eggEnergy",
-                    color = textPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-                if (isSyncing) {
-                    Text(
-                        text = "📡 同步中...",
-                        color = neonBlue,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                } else {
-                    Text(
-                        text = "已连接秘密基地 🏠",
-                        color = textSecondary,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
             if (activeSeries.isEmpty()) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "暂无可用的画布分类，\n请点击右上角「画布商城」兑换解锁背景套件吧！ ✨",
+                        text = if (onlyOwned) "暂无已拥有的背景画布，\n快去画布商城解锁喜欢的画布吧！ 🎨" else "暂无可用的画布分类，\n请点击右上角「画布商城」兑换解锁背景套件吧！ ✨",
                         color = textSecondary.copy(alpha = 0.6f),
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
@@ -438,32 +472,16 @@ fun CanvasPickerScreen(
                     )
                 }
             } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    // 左侧分类 (联动左栏)
+                Row(modifier = Modifier.fillMaxSize()) {
+
                     LazyColumn(
                         state = leftListState,
-                        modifier = Modifier
-                            .width(90.dp)
-                            .fillMaxHeight()
-                            .background(cardBg.copy(alpha = 0.4f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f))
+                        modifier = Modifier.width(90.dp).fillMaxHeight().background(cardBg.copy(alpha = 0.4f)).border(1.dp, Color.White.copy(alpha = 0.08f))
                     ) {
                         itemsIndexed(activeSeries) { index, series ->
                             val isSelected = firstVisibleItemIndex == index
                             Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        coroutineScope.launch {
-                                            rightListState.animateScrollToItem(index)
-                                        }
-                                    }
-                                    .background(if (isSelected) darkBg else Color.Transparent)
-                                    .padding(vertical = 20.dp, horizontal = 8.dp),
+                                modifier = Modifier.fillMaxWidth().clickable { coroutineScope.launch { rightListState.animateScrollToItem(index) } }.background(if (isSelected) darkBg else Color.Transparent).padding(vertical = 20.dp, horizontal = 8.dp),
                                 contentAlignment = Alignment.CenterStart
                             ) {
                                 Text(
@@ -476,20 +494,21 @@ fun CanvasPickerScreen(
                             }
                         }
                     }
-
-                    // 右侧商品列表网格 (联动右栏)
                     LazyColumn(
                         state = rightListState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(horizontal = 12.dp),
+                        modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(bottom = 20.dp)
                     ) {
                         itemsIndexed(activeSeries) { _, series ->
-                            val setsInSeries = setsList.filter { it.seriesId == series.id }
-                                .sortedBy { it.sortOrder }
+                            val setsInSeries = remember(setsList, series.id, unlockedSetIds, onlyOwned) {
+                                val list = setsList.filter { it.seriesId == series.id }
+                                if (onlyOwned) {
+                                    list.filter { it.id in unlockedSetIds }
+                                } else {
+                                    list
+                                }.sortedBy { it.sortOrder }
+                            }
 
                             if (setsInSeries.isNotEmpty()) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -501,7 +520,6 @@ fun CanvasPickerScreen(
                                         fontFamily = FontFamily.Monospace,
                                         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                                     )
-
                                     setsInSeries.forEach { set ->
                                         val setInstances = instancesList.filter { it.canvasSetId == set.id }
                                         CanvasSetFoodItemCard(
@@ -549,13 +567,9 @@ fun CanvasSetFoodItemCard(
     onSelect: (String) -> Unit
 ) {
     val context = LocalContext.current
-    
-    // 引入局部预览的比例状态，在外部选中状态改变或卡片切换时能自动同步
     var previewRatio by remember(set.id, selectedRatio) {
         mutableStateOf(if (isSelected) selectedRatio else instances.firstOrNull()?.aspectRatio ?: "16:9")
     }
-    
-    // 找到当前局部预览比例的背景图实例
     val activeInstance = instances.find { it.aspectRatio == previewRatio } ?: instances.firstOrNull()
     val displayUrl = activeInstance?.let { if (it.imageUrl.startsWith("/static/")) serverBaseUrl + it.imageUrl else it.imageUrl } ?: ""
 
@@ -579,31 +593,21 @@ fun CanvasSetFoodItemCard(
             }
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 左半部分：占满剩余宽度，垂直排列 (左上图片框，左下文字)
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 左上：图片框 (纯黑背景，使用 ContentScale.Fit 显示长宽比全貌和黑边)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     modifier = Modifier
                         .size(width = 130.dp, height = 75.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black)
-                        .border(1.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .background(if (isUnlocked) Color.Black else cardBg.copy(alpha = 0.35f))
+                        .border(1.dp, if (isUnlocked) Color.Gray.copy(alpha = 0.3f) else Color.Gray.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                 ) {
                     if (displayUrl.isNotBlank()) {
                         AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(displayUrl)
-                                .crossfade(true)
-                                .build(),
+                            model = ImageRequest.Builder(LocalContext.current).data(displayUrl).crossfade(true).build(),
                             contentDescription = set.name,
                             contentScale = ContentScale.Fit,
                             colorFilter = if (!isUnlocked) {
@@ -611,47 +615,37 @@ fun CanvasSetFoodItemCard(
                                     androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }
                                 )
                             } else null,
-                            modifier = Modifier.fillMaxSize().graphicsLayer(alpha = if (!isUnlocked) 0.5f else 1f)
+                            modifier = Modifier.fillMaxSize().graphicsLayer(alpha = if (!isUnlocked) 0.4f else 1f)
                         )
                     } else {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("无预览图", color = textSecondary, fontSize = 10.sp)
                         }
                     }
 
                     if (isSelected) {
                         Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .background(neonBlue, RoundedCornerShape(bottomStart = 8.dp))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                            modifier = Modifier.align(Alignment.TopEnd).background(neonBlue, RoundedCornerShape(bottomStart = 8.dp)).padding(horizontal = 5.dp, vertical = 2.dp)
                         ) {
-                            Text(
-                                text = "已选",
-                                color = Color.White,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text("已选", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         }
                     } else if (!isUnlocked) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .background(Color.Gray.copy(alpha = 0.7f), RoundedCornerShape(bottomStart = 8.dp))
+                                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(bottomStart = 8.dp))
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "🔒 未持有",
-                                color = Color.White,
+                                text = "🔒 未拥有",
+                                color = Color.White.copy(alpha = 0.85f),
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
+
 
                 // 左下：标题和备注文字
                 Column(

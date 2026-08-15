@@ -1,10 +1,13 @@
 package com.example.dinoroar.ui.main.components
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.text.style.TextOverflow
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -36,6 +39,8 @@ fun StickerEnergyPouchPanel(
     eggEnergy: Int,
     energyDelta: EnergyDeltaSummary,
     securePrefs: SecurePrefs,
+    activePromotion: com.example.dinoroar.network.PromotionSummaryDto? = null,
+    onNavigateToHandcraftShop: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -44,6 +49,7 @@ fun StickerEnergyPouchPanel(
     val glassBorder = appColors.textSecondary.copy(alpha = 0.2f)
 
     var showHelpDialog by remember { mutableStateOf(false) }
+    var showPromotionDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -71,14 +77,15 @@ fun StickerEnergyPouchPanel(
         }
 
         Column {
+            // 第一行：左侧蛋能量与余额 + 特惠精简徽章，右侧购物袋图标
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(end = 20.dp), // 留出空隙，防止右侧的购物袋按钮与问号按钮发生视觉冲突
+                    .padding(end = 20.dp), // 留出空隙，防止右侧的购物袋按钮与右上角问号按钮发生视觉冲突
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧合并为一行的蛋能量与余额
+                // 左侧：蛋能量、余额与精简特惠胶囊
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -89,7 +96,7 @@ fun StickerEnergyPouchPanel(
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "余额：$eggEnergy",
                         color = appColors.neonGreen,
@@ -97,14 +104,37 @@ fun StickerEnergyPouchPanel(
                         fontSize = 14.sp,
                         fontFamily = FontFamily.Monospace
                     )
+
+                    if (activePromotion != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.45f)),
+                            modifier = Modifier.clickable { showPromotionDialog = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text("🔥", fontSize = 10.5.sp)
+                                Text(
+                                    text = "特惠",
+                                    color = Color(0xFFD946EF),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
                 }
 
-                // 右侧的彩色购物袋按钮，尺寸与云朵按钮一致，即默认标准尺寸的无底色 IconButton
+                // 右侧的彩色购物袋按钮，尺寸与云朵按钮一致，点击进入手账商城菜单
                 IconButton(
                     onClick = {
-                        securePrefs.isExternalActivityActive = true
-                        val intent = Intent(context, StickerExchangeActivity::class.java)
-                        context.startActivity(intent)
+                        onNavigateToHandcraftShop()
                     }
                 ) {
                     Text(
@@ -113,6 +143,22 @@ fun StickerEnergyPouchPanel(
                     )
                 }
             }
+
+            // 促销活动详情弹窗
+            if (showPromotionDialog && activePromotion != null) {
+                PromotionDetailDialog(
+                    promo = activePromotion,
+                    onDismiss = { showPromotionDialog = false },
+                    onGoToShop = {
+                        showPromotionDialog = false
+                        onNavigateToHandcraftShop()
+                    }
+                )
+            }
+
+
+
+
 
             // Help Dialog
             if (showHelpDialog) {

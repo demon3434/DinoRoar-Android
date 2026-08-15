@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -61,6 +62,9 @@ fun CanvasExchangeScreen(
     var userInventory by remember { mutableStateOf(securePrefs.canvasInventory) }
     var eggEnergy by remember { mutableIntStateOf(securePrefs.eggEnergy) }
 
+    // 内存中缓存每个画布套件的原价与促销标记 Map(setId -> Pair(original_price, is_on_sale))
+    val priceInfoMap = remember { mutableStateMapOf<Int, Pair<Int?, Boolean>>() }
+
     // 观察 Room 本地数据库中的所有画布配置
     val seriesList by canvasSeriesDao.getAllActiveSeriesFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     val setsList by canvasSetDao.getAllActiveSetsFlow().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -78,16 +82,6 @@ fun CanvasExchangeScreen(
     val leftListState = rememberLazyListState()
     val rightListState = rememberLazyListState()
 
-    val firstVisibleItemIndex by remember {
-        derivedStateOf { rightListState.firstVisibleItemIndex }
-    }
-
-    LaunchedEffect(firstVisibleItemIndex) {
-        if (seriesList.isNotEmpty() && firstVisibleItemIndex in seriesList.indices) {
-            leftListState.animateScrollToItem(firstVisibleItemIndex)
-        }
-    }
-
     var showExchangeDialog by remember { mutableStateOf<CanvasSetEntity?>(null) }
     var previewInstance by remember { mutableStateOf<CanvasInstanceEntity?>(null) }
 
@@ -104,6 +98,7 @@ fun CanvasExchangeScreen(
             val newInstances = mutableListOf<CanvasInstanceEntity>()
             configs.forEach { ser ->
                 ser.sets.forEach { setDto ->
+                    priceInfoMap[setDto.id] = Pair(setDto.original_price, setDto.is_on_sale)
                     newSets.add(CanvasSetEntity(
                         id = setDto.id,
                         seriesId = setDto.series_id,
@@ -150,6 +145,30 @@ fun CanvasExchangeScreen(
         }
     }
 
+    var onlyUnowned by remember { mutableStateOf(false) }
+
+    val visibleSeriesList = remember(seriesList, setsList, unlockedSetIds, onlyUnowned) {
+        val sorted = seriesList.sortedBy { it.sortOrder }
+        if (onlyUnowned) {
+            sorted.filter { series ->
+                setsList.any { it.seriesId == series.id && it.id !in unlockedSetIds }
+            }
+        } else {
+            sorted
+        }
+    }
+
+    val firstVisibleItemIndex by remember {
+        derivedStateOf { rightListState.firstVisibleItemIndex }
+    }
+
+    LaunchedEffect(firstVisibleItemIndex) {
+        if (visibleSeriesList.isNotEmpty() && firstVisibleItemIndex in visibleSeriesList.indices) {
+            leftListState.animateScrollToItem(firstVisibleItemIndex)
+        }
+    }
+
+
     val appColors = LocalAppColors.current
     val darkBg = appColors.darkBg
     val cardBg = appColors.cardBg
@@ -184,17 +203,46 @@ fun CanvasExchangeScreen(
                 actions = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 16.dp)
+                        modifier = Modifier.padding(end = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("🥚", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "$eggEnergy",
-                            color = neonAmber,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
+                        FilterChip(
+                            selected = onlyUnowned,
+                            onClick = { onlyUnowned = !onlyUnowned },
+                            label = {
+                                Text(
+                                    text = if (onlyUnowned) "✓ 未拥有" else "未拥有",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (onlyUnowned) FontWeight.Bold else FontWeight.Normal,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            },
+                            shape = RoundedCornerShape(50),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = appColors.neonGreen.copy(alpha = 0.2f),
+                                selectedLabelColor = appColors.neonGreen,
+                                containerColor = Color.Transparent,
+                                labelColor = textSecondary
+                            ),
+                            border = BorderStroke(
+                                1.dp,
+                                if (onlyUnowned) appColors.neonGreen else textSecondary.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.height(30.dp)
+
                         )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🥚", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$eggEnergy",
+                                color = neonAmber,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = darkBg)
@@ -208,32 +256,39 @@ fun CanvasExchangeScreen(
                 .padding(innerPadding)
         ) {
             // 双栏布局实现
-            if (seriesList.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("暂无可用背景系列", color = textSecondary, fontSize = 13.sp)
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(top = 8.dp)
-            ) {
-                // 左栏：系列侧边定位栏 (完全对齐贴纸商城)
-                LazyColumn(
-                    state = leftListState,
+            if (visibleSeriesList.isEmpty()) {
+                Box(
                     modifier = Modifier
-                        .width(96.dp)
-                        .fillMaxHeight()
-                        .background(cardBg.copy(alpha = 0.4f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f))
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    itemsIndexed(seriesList) { index, series ->
+                    Text(
+                        text = if (onlyUnowned) "全馆背景画布均已拥有，太棒啦！ 🎨" else "暂无可用背景系列",
+                        color = textSecondary,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(top = 8.dp)
+                ) {
+                    // 左栏：系列侧边定位栏 (完全对齐贴纸商城)
+                    LazyColumn(
+                        state = leftListState,
+                        modifier = Modifier
+                            .width(96.dp)
+                            .fillMaxHeight()
+                            .background(cardBg.copy(alpha = 0.4f))
+                            .border(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        itemsIndexed(visibleSeriesList) { index, series ->
+
                         val isSelected = firstVisibleItemIndex == index
                         Box(
                             modifier = Modifier
@@ -268,7 +323,7 @@ fun CanvasExchangeScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 60.dp)
                 ) {
-                    itemsIndexed(seriesList) { _, series ->
+                    itemsIndexed(visibleSeriesList) { _, series ->
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "📁 ${series.name}",
@@ -279,7 +334,8 @@ fun CanvasExchangeScreen(
                                 modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
                             )
 
-                            val setsInSeries = setsList.filter { it.seriesId == series.id }
+                            val rawSetsInSeries = setsList.filter { it.seriesId == series.id }
+                            val setsInSeries = if (onlyUnowned) rawSetsInSeries.filter { it.id !in unlockedSetIds } else rawSetsInSeries
                             if (setsInSeries.isEmpty()) {
                                 Text(
                                     text = "暂无背景画布",
@@ -288,6 +344,7 @@ fun CanvasExchangeScreen(
                                     modifier = Modifier.padding(vertical = 6.dp)
                                 )
                             } else {
+
                                 setsInSeries.chunked(2).forEach { rowSets ->
                                     Row(
                                         modifier = Modifier
@@ -488,6 +545,10 @@ fun CanvasExchangeScreen(
                                                             )
                                                         }
                                                     } else {
+                                                        val priceInfo = priceInfoMap[canvasSet.id]
+                                                        val origPrice = priceInfo?.first
+                                                        val isOnSale = (priceInfo?.second == true) && (origPrice != null && origPrice > canvasSet.exchangePrice)
+
                                                         Button(
                                                             onClick = {
                                                                 if (eggEnergy < canvasSet.exchangePrice) {
@@ -496,20 +557,52 @@ fun CanvasExchangeScreen(
                                                                     showExchangeDialog = canvasSet
                                                                 }
                                                             },
-                                                            colors = ButtonDefaults.buttonColors(containerColor = neonAmber),
+                                                            colors = ButtonDefaults.buttonColors(
+                                                                containerColor = if (isOnSale) Color(0xFF8B5CF6) else neonAmber
+                                                            ),
                                                             shape = RoundedCornerShape(8.dp),
                                                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
                                                             modifier = Modifier
                                                                 .fillMaxWidth()
                                                                 .height(26.dp)
                                                         ) {
-                                                            Text(
-                                                                text = "🥚 ${canvasSet.exchangePrice} 兑换",
-                                                                color = Color.Black,
-                                                                fontSize = 9.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                fontFamily = FontFamily.Monospace
-                                                            )
+                                                            if (isOnSale && origPrice != null) {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.Center
+                                                                ) {
+                                                                    Text(
+                                                                        text = "🥚${canvasSet.exchangePrice}",
+                                                                        color = Color.White,
+                                                                        fontSize = 9.sp,
+                                                                        fontWeight = FontWeight.ExtraBold,
+                                                                        fontFamily = FontFamily.Monospace
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                                    Text(
+                                                                        text = "$origPrice",
+                                                                        textDecoration = TextDecoration.LineThrough,
+                                                                        color = Color.White.copy(alpha = 0.6f),
+                                                                        fontSize = 8.sp,
+                                                                        fontFamily = FontFamily.Monospace
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                                    Text(
+                                                                        text = "特惠",
+                                                                        color = Color(0xFFFFD166),
+                                                                        fontWeight = FontWeight.Black,
+                                                                        fontSize = 7.sp
+                                                                    )
+                                                                }
+                                                            } else {
+                                                                Text(
+                                                                    text = "🥚 ${canvasSet.exchangePrice} 兑换",
+                                                                    color = Color.Black,
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontFamily = FontFamily.Monospace
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -533,11 +626,23 @@ fun CanvasExchangeScreen(
     // 1. 兑换二次确认 Dialog
     if (showExchangeDialog != null) {
         val targetSet = showExchangeDialog!!
+        val priceInfo = priceInfoMap[targetSet.id]
+        val origPrice = priceInfo?.first
+        val isOnSale = (priceInfo?.second == true) && (origPrice != null && origPrice > targetSet.exchangePrice)
+
+        val dialogTitle = if (isOnSale) "🎉 节日特惠兑换" else "兑换背景确认"
+        val dialogMessage = if (isOnSale && origPrice != null) {
+            val saved = origPrice - targetSet.exchangePrice
+            "✨ 正在参与节日特惠大促！\n\n背景套件：【${targetSet.name}】\n原价：${origPrice} 蛋能量\n特惠实付：${targetSet.exchangePrice} 蛋能量\n🎉 本次兑换为您立省 ${saved} 蛋能量！\n\n兑换后该系列所有比例画布永久解锁，确认立即兑换吗？"
+        } else {
+            "是否消耗 🥚 ${targetSet.exchangePrice} 蛋能量兑换画布背景套件【${targetSet.name}】？\n兑换后该背景系列中所有宽高比例的画布都将一并解锁可用哦！"
+        }
+
         AlertDialog(
             onDismissRequest = { showExchangeDialog = null },
             title = {
                 Text(
-                    text = "兑换背景确认",
+                    text = dialogTitle,
                     color = textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
@@ -546,15 +651,20 @@ fun CanvasExchangeScreen(
             },
             text = {
                 Text(
-                    text = "是否消耗 🥚 ${targetSet.exchangePrice} 蛋能量兑换画布背景套件【${targetSet.name}】？\n兑换后该背景系列中所有宽高比例的画布都将一并解锁可用哦！",
+                    text = dialogMessage,
                     color = textSecondary,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
+                        if (serverBaseUrl.isBlank()) {
+                            Toast.makeText(context, "⚠️ 尚未连接服务端，无法进行在线兑换", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
                         coroutineScope.launch {
                             isSyncing = true
                             try {
@@ -573,10 +683,11 @@ fun CanvasExchangeScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = neonAmber)
+                    colors = ButtonDefaults.textButtonColors(contentColor = if (isOnSale) Color(0xFF8B5CF6) else neonAmber)
                 ) {
-                    Text("确认兑换 🥚", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    Text("✨ 立即兑换 🥚", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 }
+
             },
             dismissButton = {
                 TextButton(

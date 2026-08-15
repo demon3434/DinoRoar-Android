@@ -26,13 +26,28 @@ fun DashboardTab(
     energyDelta: EnergyDeltaSummary,
     reviewSummary: DashboardReviewSummary,
     categorySummaries: Map<String, List<PersonMoodStatus>>,
+    apiService: com.example.dinoroar.network.DinoApiService? = null,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToCreate: (String?) -> Unit,
     onFilterPerson: (String) -> Unit,
     onNavigateToPersonManage: () -> Unit,
+    onNavigateToHandcraftShop: () -> Unit = {},
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier
 ) {
+    var activePromotion by remember { mutableStateOf<com.example.dinoroar.network.PromotionSummaryDto?>(null) }
+
+    LaunchedEffect(Unit) {
+        if (apiService != null) {
+            try {
+                val promos = apiService.getActivePromotionsSummary()
+                activePromotion = promos.firstOrNull()
+            } catch (e: Exception) {
+                // 离线或异常时静默降级
+            }
+        }
+    }
+
     LazyColumn(
         modifier = modifier
             .padding(innerPadding)
@@ -40,14 +55,18 @@ fun DashboardTab(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. 蛋能量储蓄罐 (包含余额和多维增量展示 + 兑换入口)
+        // 1. 蛋能量储蓄罐 (包含余额和多维增量展示 + 促销活动提示 + 兑换入口)
         item {
             StickerEnergyPouchPanel(
                 eggEnergy = eggEnergy,
                 energyDelta = energyDelta,
-                securePrefs = securePrefs
+                securePrefs = securePrefs,
+                activePromotion = activePromotion,
+                onNavigateToHandcraftShop = onNavigateToHandcraftShop
             )
         }
+
+
 
         // 2. 自然周/自然月时光机回顾卡片
         item {

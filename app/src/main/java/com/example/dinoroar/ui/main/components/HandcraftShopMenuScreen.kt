@@ -22,12 +22,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dinoroar.theme.LocalAppColors
 import com.example.dinoroar.data.local.ActivityStateTracker
+import com.example.dinoroar.network.DinoApiService
+import com.example.dinoroar.network.PromotionSummaryDto
 import com.example.dinoroar.ui.diary.CanvasExchangeActivity
 import com.example.dinoroar.ui.sticker.StickerExchangeActivity
+import androidx.compose.runtime.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HandcraftShopMenuScreen(
+    apiService: DinoApiService? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -38,6 +42,14 @@ fun HandcraftShopMenuScreen(
     val neonBlue = appColors.neonBlue
     val textPrimary = appColors.textPrimary
     val textSecondary = appColors.textSecondary
+
+    val activePromos by produceState<List<PromotionSummaryDto>>(initialValue = emptyList()) {
+        value = try {
+            apiService?.getActivePromotionsSummary() ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -64,7 +76,54 @@ fun HandcraftShopMenuScreen(
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(36.dp))
+        if (activePromos.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            val promo = activePromos.first()
+            val rulesText = if (promo.rules_summary.isNotEmpty()) {
+                "（${promo.rules_summary.joinToString("，")}）"
+            } else if (!promo.description.isNullOrBlank()) {
+                "（${promo.description}）"
+            } else ""
+
+            Surface(
+                color = Color(0xFF8B5CF6).copy(alpha = 0.12f),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🎉", fontSize = 22.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "节日特惠活动进行中：${promo.name}$rulesText",
+                            color = textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = 18.sp
+                        )
+                        if (!promo.description.isNullOrBlank() && promo.rules_summary.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "💬 ${promo.description}",
+                                color = textSecondary,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+        } else {
+            Spacer(modifier = Modifier.height(36.dp))
+        }
+
 
         // 二级菜单卡片 1：贴纸商城
         Card(
@@ -72,17 +131,13 @@ fun HandcraftShopMenuScreen(
                 .fillMaxWidth()
                 .height(130.dp)
                 .clickable {
-                    ActivityStateTracker.isExternalActivityActive = true
                     val intent = Intent(context, StickerExchangeActivity::class.java)
                     context.startActivity(intent)
-                }
-                .border(
-                    BorderStroke(1.dp, Brush.horizontalGradient(listOf(neonAmber.copy(alpha = 0.3f), Color.Transparent))),
-                    RoundedCornerShape(16.dp)
-                ),
+                },
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = cardBg.copy(alpha = 0.6f))
         ) {
+
             Row(
                 modifier = Modifier
                     .fillMaxSize()

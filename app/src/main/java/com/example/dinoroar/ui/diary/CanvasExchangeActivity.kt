@@ -45,13 +45,9 @@ class CanvasExchangeActivity : ComponentActivity() {
     @Inject
     lateinit var canvasInstanceDao: CanvasInstanceDao
 
-    override fun onStop() {
-        super.onStop()
-        ActivityStateTracker.isExternalActivityActive = false
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ActivityStateTracker.onExternalActivityStarted()
         enableEdgeToEdge()
 
         setContent {
@@ -75,4 +71,10 @@ class CanvasExchangeActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ActivityStateTracker.onExternalActivityDestroyed()
+    }
 }
+

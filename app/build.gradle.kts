@@ -13,9 +13,13 @@ android {
         applicationId = "com.example.dinoroar"
         minSdk = 24
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.1.2"
+        versionCode = 17
+        versionName = "1.1.6"
     }
+
+
+
+
 
     signingConfigs {
         create("release") {

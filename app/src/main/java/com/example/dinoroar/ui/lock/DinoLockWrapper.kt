@@ -31,8 +31,11 @@ fun DinoLockWrapper(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
+                if (ActivityStateTracker.isCameraActive || ActivityStateTracker.isExternalActivityActive) {
+                    return@LifecycleEventObserver
+                }
                 val activity = context as? Activity
-                if (activity != null && !activity.isFinishing && !ActivityStateTracker.isCameraActive) {
+                if (activity != null && !activity.isFinishing) {
                     if (securePrefs.token != null) {
                         isAppLocked = true
                         showNineGrid = !securePrefs.isCamouflageEnabled
@@ -40,6 +43,7 @@ fun DinoLockWrapper(
                 }
             }
         }
+
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)

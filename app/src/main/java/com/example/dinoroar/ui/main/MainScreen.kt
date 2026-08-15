@@ -448,6 +448,7 @@ fun MainScreen(
                         energyDelta = energyDelta,
                         reviewSummary = reviewSummary,
                         categorySummaries = categorySummaries,
+                        apiService = apiService,
                         onNavigateToDetail = onNavigateToDetail,
                         onNavigateToCreate = onNavigateToCreate,
                         onFilterPerson = { personUuid ->
@@ -455,8 +456,11 @@ fun MainScreen(
                             currentTab = MainTab.DIARY_LIST
                         },
                         onNavigateToPersonManage = { currentTab = MainTab.PERSONS },
+                        onNavigateToHandcraftShop = { currentTab = MainTab.HANDCRAFT_SHOP },
                         innerPadding = innerPadding
                     )
+
+
                 }
                 MainTab.DIARY_LIST -> {
                     DiaryListTab(
@@ -514,9 +518,11 @@ fun MainScreen(
                 }
                  MainTab.HANDCRAFT_SHOP -> {
                      HandcraftShopMenuScreen(
+                         apiService = apiService,
                          modifier = Modifier.padding(innerPadding)
                      )
                  }
+
             }
         }
     }

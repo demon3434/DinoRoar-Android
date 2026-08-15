@@ -401,7 +401,8 @@ class LogCreateViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val logUuid = currentSessionUuid ?: editingLogUuid ?: UUID.randomUUID().toString()
+                val isExistingEdit = editingLogUuid != null && isEditMode
+                val logUuid = if (isExistingEdit) editingLogUuid!! else UUID.randomUUID().toString()
                 val timeStamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
 
                 // 1. 清理已被物理删除的附件
@@ -460,13 +461,14 @@ class LogCreateViewModel(
                 }
 
                 // 3. 构建日记实体并保存
-                val currentLog = if (isEditMode) repository.getLogByUuid(logUuid) else null
+                val currentLog = if (isExistingEdit) repository.getLogByUuid(logUuid) else null
                 val createdAtVal = currentLog?.createdAt ?: timeStamp
                 val updatedAtVal = timeStamp
-                val versionVal = if (isEditMode) (currentLog?.version ?: 1) + 1 else 1
+                val versionVal = if (isExistingEdit) (currentLog?.version ?: 1) + 1 else 1
 
                 val cleanedContent = sanitizeMultilineText(content)
                 val cleanedOwnThoughts = sanitizeMultilineText(ownThoughts)
+
 
                 // 贴纸序列化为占位标签，精度设为 Locale.US 保证统一格式化为 "x.y" 格式
                 val stickersStr = stickers.joinToString("") {
@@ -478,14 +480,12 @@ class LogCreateViewModel(
                 var energyReward = 0
                 var nextDinoId: Int? = null
                 if (!isEditMode) {
-                    energyReward = when {
-                        cleanedOwnThoughts.trim().length > 5 -> 20
-                        (tempAttachments.size + recordedFiles.size) > 0 -> 10
-                        else -> 5
-                    }
+                    val hasMedia = (tempAttachments.size + recordedFiles.size) > 0
+                    energyReward = if (hasMedia) 30 else 10
                     val oldEnergy = securePrefs.eggEnergy
                     val newEnergy = oldEnergy + energyReward
                     securePrefs.eggEnergy = newEnergy
+
 
                     // 达到100能量阈值，爆发出一个新贴纸
                     if (newEnergy / 100 > oldEnergy / 100) {

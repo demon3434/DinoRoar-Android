@@ -243,12 +243,27 @@ interface DinoApiService {
         @Body payload: CanvasExchangeRequest
     ): CanvasSyncPayload
 
+    @GET("api/promotions/active-summary")
+    suspend fun getActivePromotionsSummary(): List<PromotionSummaryDto>
+
     @Multipart
     @POST("api/stt/transcribe")
     suspend fun transcribeAudio(
         @Part file: MultipartBody.Part
     ): SttTranscribeResponse
 }
+
+@Serializable
+data class PromotionSummaryDto(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    val rules_summary: List<String> = emptyList(),
+    val highlight_text: String? = null,
+    val start_time: String,
+    val end_time: String
+)
+
 
 @Serializable
 data class SttTranscribeResponse(
@@ -289,6 +304,8 @@ data class StickerConfigDto(
     val description: String? = null,
     val sort_order: Int,
     val exchange_price: Int,
+    val original_price: Int? = null,
+    val is_on_sale: Boolean = false,
     val is_active: Boolean = true,
     val is_deleted: Boolean = false,
     val created_at: String
@@ -331,6 +348,8 @@ data class CanvasSetDto(
     val description: String? = null,
     val sort_order: Int,
     val exchange_price: Int = 50,
+    val original_price: Int? = null,
+    val is_on_sale: Boolean = false,
     val is_active: Boolean = true,
     val is_deleted: Boolean = false,
     val created_at: String,
@@ -358,4 +377,5 @@ data class CanvasSyncPayload(
 data class CanvasExchangeRequest(
     val canvas_set_id: Int
 )
+
 

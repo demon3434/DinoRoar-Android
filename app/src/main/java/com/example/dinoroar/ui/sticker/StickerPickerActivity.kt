@@ -61,13 +61,9 @@ class StickerPickerActivity : ComponentActivity() {
     @Inject
     lateinit var securePrefs: SecurePrefs
 
-    override fun onStop() {
-        super.onStop()
-        com.example.dinoroar.data.local.ActivityStateTracker.isExternalActivityActive = false
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.example.dinoroar.data.local.ActivityStateTracker.onExternalActivityStarted()
         enableEdgeToEdge()
 
         setContent {
@@ -98,7 +94,9 @@ class StickerPickerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        com.example.dinoroar.data.local.ActivityStateTracker.onExternalActivityDestroyed()
     }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -217,17 +215,6 @@ fun StickerPickerScreen(
         loadConfig()
     }
 
-    // 联动控制
-    val firstVisibleItemIndex by remember {
-        derivedStateOf { rightListState.firstVisibleItemIndex }
-    }
-
-    LaunchedEffect(firstVisibleItemIndex) {
-        if (seriesList.isNotEmpty() && firstVisibleItemIndex in seriesList.indices) {
-            leftListState.animateScrollToItem(firstVisibleItemIndex)
-        }
-    }
-
     val appColors = LocalAppColors.current
     val darkBg = appColors.darkBg
     val cardBg = appColors.cardBg
@@ -238,24 +225,104 @@ fun StickerPickerScreen(
     val textPrimary = appColors.textPrimary
     val textSecondary = appColors.textSecondary
 
+    var onlyOwned by remember { mutableStateOf(true) }
+
+    val visibleSeriesList = remember(seriesList, remainingInventory, onlyOwned) {
+        if (onlyOwned) {
+            seriesList.filter { series ->
+                series.stickers.any { it.is_active && !it.is_deleted && (remainingInventory[it.id] ?: 0) > 0 }
+            }
+        } else {
+            seriesList
+        }
+    }
+
+
+    // 联动控制
+    val firstVisibleItemIndex by remember {
+        derivedStateOf { rightListState.firstVisibleItemIndex }
+    }
+
+    LaunchedEffect(firstVisibleItemIndex) {
+        if (visibleSeriesList.isNotEmpty() && firstVisibleItemIndex in visibleSeriesList.indices) {
+            leftListState.animateScrollToItem(firstVisibleItemIndex)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "🎨 我的贴纸",
-                        color = neonAmber,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "🎨 我的贴纸",
+                            color = neonAmber,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, neonAmber.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    text = "🥚 $eggEnergy",
+                                    color = neonAmber,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                if (isLoading) {
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    CircularProgressIndicator(modifier = Modifier.size(8.dp), strokeWidth = 1.dp, color = neonAmber)
+                                }
+                            }
+                        }
+                    }
                 },
+
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = neonAmber)
                     }
                 },
                 actions = {
+                    FilterChip(
+                        selected = onlyOwned,
+                        onClick = { onlyOwned = !onlyOwned },
+                        label = {
+                            Text(
+                                text = if (onlyOwned) "✓ 已拥有" else "已拥有",
+                                fontSize = 11.sp,
+                                fontWeight = if (onlyOwned) FontWeight.Bold else FontWeight.Normal,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        },
+                        shape = RoundedCornerShape(50),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = neonGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = neonGreen,
+                            containerColor = Color.Transparent,
+                            labelColor = textSecondary
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (onlyOwned) neonGreen else textSecondary.copy(alpha = 0.3f)
+                        ),
+                        modifier = Modifier.height(30.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     Button(
                         onClick = {
                             val intent = Intent(context, StickerExchangeActivity::class.java)
@@ -278,6 +345,7 @@ fun StickerPickerScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = darkBg)
             )
         },
+
         bottomBar = {
             StickerPickerBottomTray(
                 selectedStickers = selectedStickers,
@@ -302,14 +370,20 @@ fun StickerPickerScreen(
             ) {
                 CircularProgressIndicator(color = neonBlue)
             }
-        } else if (seriesList.isEmpty()) {
+        } else if (visibleSeriesList.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("暂无可用系列分类", color = textSecondary, fontSize = 14.sp)
+                Text(
+                    text = if (onlyOwned) "暂无已拥有的贴纸，\n快去贴纸商城挑选喜欢的恐龙吧！ 🦖" else "暂无可用贴纸系列",
+                    color = textSecondary,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         } else {
             Row(
@@ -326,7 +400,7 @@ fun StickerPickerScreen(
                         .background(cardBg.copy(alpha = 0.4f))
                         .border(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
-                    itemsIndexed(seriesList) { index, series ->
+                    itemsIndexed(visibleSeriesList) { index, series ->
                         val isSelected = firstVisibleItemIndex == index
                         Box(
                             modifier = Modifier
@@ -361,7 +435,7 @@ fun StickerPickerScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 120.dp)
                 ) {
-                    itemsIndexed(seriesList) { _, series ->
+                    itemsIndexed(visibleSeriesList) { _, series ->
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "📁 ${series.name}",
@@ -372,7 +446,8 @@ fun StickerPickerScreen(
                                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                             )
 
-                            val stickers = series.stickers.filter { it.is_active && !it.is_deleted }
+                            val rawStickers = series.stickers.filter { it.is_active && !it.is_deleted }
+                            val stickers = if (onlyOwned) rawStickers.filter { (remainingInventory[it.id] ?: 0) > 0 } else rawStickers
                             if (stickers.isEmpty()) {
                                 Text(
                                     text = "暂无贴纸",
@@ -381,6 +456,7 @@ fun StickerPickerScreen(
                                     modifier = Modifier.padding(vertical = 8.dp)
                                 )
                             } else {
+
                                 stickers.chunked(3).forEach { rowStickers ->
                                     Row(
                                         modifier = Modifier
@@ -459,28 +535,43 @@ fun StickerPickerScreen(
                                                     }
                                                 }
 
-                                                // 右上角红底白字可用库存角标 (胶囊)
+                                                // 右上角红底白字可用库存角标 (固定三位数宽度与小巧圆角矩形)
                                                 if (currentCount > 0) {
                                                     Box(
                                                         modifier = Modifier
                                                             .align(Alignment.TopEnd)
-                                                            .offset(x = 4.dp, y = (-4).dp)
-                                                            .clip(RoundedCornerShape(50))
-                                                            .background(neonRed)
-                                                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                                                            .offset(x = 3.dp, y = (-3).dp)
+                                                            .width(24.dp)
+                                                            .height(14.dp)
+                                                            .clip(RoundedCornerShape(7.dp))
+                                                            .background(Color(0xFFFF5252))
+                                                            .border(0.5.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(7.dp)),
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         Text(
                                                             text = if (currentCount > 99) "99+" else currentCount.toString(),
                                                             color = Color.White,
-                                                            fontSize = 8.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontFamily = FontFamily.Monospace
+                                                            fontSize = 8.5.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                            lineHeight = 10.sp,
+                                                            style = androidx.compose.ui.text.TextStyle(
+                                                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                                                    includeFontPadding = false
+                                                                ),
+                                                                lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                                                    alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                                                    trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both
+                                                                )
+                                                            )
                                                         )
                                                     }
+
                                                 }
                                             }
                                         }
+
 
                                         val remaining = 3 - rowStickers.size
                                         repeat(remaining) {
