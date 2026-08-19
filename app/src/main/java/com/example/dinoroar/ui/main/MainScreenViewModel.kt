@@ -109,16 +109,17 @@ class MainScreenViewModel(
         }.distinct().sortedDescending()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 6. 根据分类和排序规则排好序的关系人列表
+    // 6. 根据分类和排序规则排好序的关系人列表（仅包含活跃分类下的人物）
     val sortedPersonsForFilter: StateFlow<List<PersonEntity>> = combine(allPersons, allCategories) { personsList, categoriesList ->
-        val categoryOrderMap = categoriesList.mapIndexed { index, cat -> cat.uuid to index }.toMap()
-        personsList.sortedWith(compareBy<PersonEntity> { person ->
-            if (person.categoryUuid == null) {
-                Int.MAX_VALUE
-            } else {
+        val activeCategories = categoriesList.filter { !it.isDeleted }
+        val activeCategoryUuids = activeCategories.map { it.uuid }.toSet()
+        val categoryOrderMap = activeCategories.mapIndexed { index, cat -> cat.uuid to index }.toMap()
+
+        personsList
+            .filter { !it.isDeleted && !it.isTemporary && it.categoryUuid != null && activeCategoryUuids.contains(it.categoryUuid) }
+            .sortedWith(compareBy<PersonEntity> { person ->
                 categoryOrderMap[person.categoryUuid] ?: Int.MAX_VALUE
-            }
-        }.thenBy { it.sortOrder })
+            }.thenBy { it.sortOrder })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Helper functions for Date check
@@ -344,7 +345,64 @@ class MainScreenViewModel(
         clearFilter()
         searchQuery.value = ""
     }
+
+    // 9. 每日签到与蛋能量明细状态流
+    val checkInStatus = MutableStateFlow<com.example.dinoroar.network.CheckInStatusResponse?>(null)
+    val isCheckingIn = MutableStateFlow(false)
+    val energyTransactions = MutableStateFlow<List<com.example.dinoroar.network.EnergyTransactionDto>>(emptyList())
+    val isLoadingTransactions = MutableStateFlow(false)
+
+    fun fetchCheckInStatus(apiService: com.example.dinoroar.network.DinoApiService) {
+        viewModelScope.launch {
+            try {
+                val res = apiService.getCheckInStatus()
+                checkInStatus.value = res
+            } catch (e: Exception) {
+                // 静默失败或离线降级
+            }
+        }
+    }
+
+    fun performCheckIn(
+        apiService: com.example.dinoroar.network.DinoApiService,
+        securePrefs: com.example.dinoroar.data.local.SecurePrefs,
+        onSuccess: (com.example.dinoroar.network.CheckInResultResponse) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (isCheckingIn.value) return
+        isCheckingIn.value = true
+        viewModelScope.launch {
+            try {
+                val reqUuid = java.util.UUID.randomUUID().toString()
+                val result = apiService.performCheckIn(com.example.dinoroar.network.CheckInRequest(reqUuid))
+                securePrefs.eggEnergy = result.total_egg_energy
+                // 重新刷新签到状态
+                fetchCheckInStatus(apiService)
+                onSuccess(result)
+            } catch (e: Exception) {
+                onError(e.message ?: "敲蛋签到失败，请检查网络连接")
+            } finally {
+                isCheckingIn.value = false
+            }
+        }
+    }
+
+    fun loadEnergyTransactions(apiService: com.example.dinoroar.network.DinoApiService) {
+        if (isLoadingTransactions.value) return
+        isLoadingTransactions.value = true
+        viewModelScope.launch {
+            try {
+                val res = apiService.getEnergyTransactions(page = 1, pageSize = 30)
+                energyTransactions.value = res.items
+            } catch (e: Exception) {
+                // 静默失败
+            } finally {
+                isLoadingTransactions.value = false
+            }
+        }
+    }
 }
+
 
 // 首页看板大改版用到的纯展示数据结构
 data class EnergyDeltaSummary(

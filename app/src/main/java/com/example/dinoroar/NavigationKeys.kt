@@ -16,3 +16,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object PersonCategoryManage : NavKey
 @Serializable data class PersonEdit(val personUuid: String, val isTemp: Boolean, val defaultCategoryUuid: String? = null) : NavKey
 @Serializable data class CategorySelect(val currentCategoryUuid: String?) : NavKey
+@Serializable data object EnergyLedger : NavKey
+

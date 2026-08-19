@@ -122,6 +122,7 @@ class DiaryLogSyncer @Inject constructor(
                 if (shouldOverwrite) {
                     val logEntity = LogEntity(
                         uuid = serverLog.uuid,
+                        serverId = serverLog.id,
                         userId = userId,
                         title = serverLog.title,
                         incidentDate = serverLog.incident_date,
@@ -140,6 +141,7 @@ class DiaryLogSyncer @Inject constructor(
                         isLocalOnly = false
                     )
                     logDao.insertOrUpdate(logEntity)
+
 
                     // 覆盖本地的日志背景画布关联
                     val canvasInstanceId = serverLog.canvas_instance_id

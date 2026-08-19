@@ -241,7 +241,11 @@ fun MainNavigation(
                     onNavigateToPersonCategoryManage = {
                         backStack.add(PersonCategoryManage)
                     },
+                    onNavigateToEnergyLedger = {
+                        backStack.add(EnergyLedger)
+                    },
                     onLogout = {
+
                         com.example.dinoroar.network.StickerConfigCache.clear()
                         securePrefs.username = ""
                         securePrefs.token = null
@@ -340,6 +344,7 @@ fun MainNavigation(
             entry<PersonSelect> { key ->
                 PersonSelectScreen(
                     repository = repository,
+                    syncManager = syncManager,
                     selectedUuids = key.selectedUuids,
                     onNavigateBack = {
                         backStack.removeLastOrNull()
@@ -393,6 +398,22 @@ fun MainNavigation(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+
+            entry<EnergyLedger> {
+                com.example.dinoroar.ui.energy.EnergyLedgerScreen(
+                    apiService = apiService,
+                    securePrefs = securePrefs,
+                    onBack = {
+                        backStack.removeLastOrNull()
+                    },
+                    onNavigateToDiary = { diaryUuid ->
+                        backStack.add(LogDetail(logUuid = diaryUuid))
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
         }
     )
 }
+

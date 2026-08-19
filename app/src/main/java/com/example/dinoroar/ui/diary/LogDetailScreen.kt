@@ -77,7 +77,7 @@ import com.example.dinoroar.ui.main.getDinoName
 
 private val BackgroundDownloadScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
 
-@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
+@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun LogDetailScreen(
     repository: DataRepository,
@@ -345,8 +345,9 @@ fun LogDetailScreen(
 
             // 人物关联
             if (associatedPersons.isNotEmpty()) {
-                Row(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     associatedPersons.forEach { person ->
@@ -385,7 +386,9 @@ fun LogDetailScreen(
                                 color = colorPair.text,
                                 fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

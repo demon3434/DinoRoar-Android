@@ -13,9 +13,11 @@ android {
         applicationId = "com.example.dinoroar"
         minSdk = 24
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.1.6"
+        versionCode = 20
+        versionName = "1.2.0"
     }
+
+
 
 
 

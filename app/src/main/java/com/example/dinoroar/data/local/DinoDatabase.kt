@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PersonCategoryEntity::class, DinoConfigEntity::class, StickerSeriesEntity::class, StickerEntity::class,
         CanvasSeriesEntity::class, CanvasSetEntity::class, CanvasInstanceEntity::class, LogCanvasEntity::class
     ],
-    version = 15,
+    version = 17,
     exportSchema = false
 )
 abstract class DinoDatabase : RoomDatabase() {
@@ -28,6 +28,19 @@ abstract class DinoDatabase : RoomDatabase() {
     abstract fun logCanvasDao(): LogCanvasDao
 
     companion object {
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `logs` ADD COLUMN `serverId` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `person_categories` ADD COLUMN `isSynced` INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
+
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // 1. 重构 canvas_instances 表：移除外键约束

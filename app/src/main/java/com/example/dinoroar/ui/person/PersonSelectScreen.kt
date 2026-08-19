@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.dinoroar.data.DataRepository
 import com.example.dinoroar.data.local.PersonCategoryEntity
 import com.example.dinoroar.data.local.PersonEntity
+import com.example.dinoroar.data.sync.SyncManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -136,6 +137,7 @@ fun PersonSelectScreen(
     selectedUuids: List<String>,
     onNavigateBack: () -> Unit,
     onNavigateToPersonEdit: (String, Boolean, String?) -> Unit,
+    syncManager: SyncManager? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -161,6 +163,14 @@ fun PersonSelectScreen(
 
     LaunchedEffect(Unit) {
         recentPersons = repository.getRecentPersons()
+        if (syncManager != null) {
+            try {
+                syncManager.sync()
+                recentPersons = repository.getRecentPersons()
+            } catch (_: Exception) {
+                // 静默失败，保持无网/离线环境流畅可用
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -197,15 +207,20 @@ fun PersonSelectScreen(
                     person.categoryUuid != null && activeCategoryUuids.contains(person.categoryUuid)
                 }
                 else -> allPersons.filter { person ->
-                    !person.isTemporary && !person.isDeleted && person.categoryUuid == activeCategoryUuid
+                    !person.isTemporary && !person.isDeleted &&
+                    person.categoryUuid == activeCategoryUuid &&
+                    activeCategoryUuids.contains(person.categoryUuid)
                 }
             }
         }
     }
 
     // Check if the current search name exact matches any active person
-    val hasExactMatch = remember(allPersons, searchQuery) {
-        searchQuery.isBlank() || allPersons.any { it.name.trim() == searchQuery.trim() && !it.isDeleted }
+    val hasExactMatch = remember(allPersons, searchQuery, activeCategoryUuids) {
+        searchQuery.isBlank() || allPersons.any {
+            it.name.trim() == searchQuery.trim() && !it.isDeleted &&
+            it.categoryUuid != null && activeCategoryUuids.contains(it.categoryUuid)
+        }
     }
 
     Scaffold(
@@ -347,7 +362,7 @@ fun PersonSelectScreen(
                                     newFormalName = searchQuery.trim()
                                     newFormalAbbrev = PinyinUtils.getAbbreviation(newFormalName)
                                     newFormalRelation = ""
-                                    newFormalCategoryUuid = if (allCategories.isNotEmpty()) allCategories[0].uuid else null
+                                    newFormalCategoryUuid = allCategories.firstOrNull { !it.isDeleted }?.uuid
                                     newFormalColor = "red"
                                     showCreateFormalDialog = true
                                 },
@@ -507,9 +522,10 @@ fun PersonSelectScreen(
                         }
                     }
 
-                    if (allCategories.isNotEmpty()) {
+                    val activeCategoriesList = remember(allCategories) { allCategories.filter { !it.isDeleted } }
+                    if (activeCategoriesList.isNotEmpty()) {
                         var expanded by remember { mutableStateOf(false) }
-                        val currentCategoryName = allCategories.find { it.uuid == newFormalCategoryUuid }?.name ?: "未指定"
+                        val currentCategoryName = activeCategoriesList.find { it.uuid == newFormalCategoryUuid }?.name ?: "未指定"
                         Text("所属分类:", fontSize = 11.sp, color = Color.Gray)
                         Box {
                             OutlinedButton(
@@ -522,7 +538,7 @@ fun PersonSelectScreen(
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false }
                             ) {
-                                allCategories.forEach { category ->
+                                activeCategoriesList.forEach { category ->
                                     DropdownMenuItem(
                                         text = { Text(category.name) },
                                         onClick = {

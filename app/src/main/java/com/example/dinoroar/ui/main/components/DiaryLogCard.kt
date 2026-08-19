@@ -41,7 +41,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DiaryLogCard(
     logWithConfig: com.example.dinoroar.data.local.LogWithConfig,
@@ -334,8 +334,9 @@ fun DiaryLogCard(
 
             if (associatedPersons.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     associatedPersons.forEach { person ->
@@ -361,7 +362,9 @@ fun DiaryLogCard(
                                 text = label,
                                 color = colorPair.text,
                                 fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

@@ -141,15 +141,23 @@ interface PersonDao {
     @Query("SELECT * FROM person_categories WHERE (userId = :userId OR userId = '')")
     suspend fun getAllCategoriesIncludingDeleted(userId: String): List<PersonCategoryEntity>
 
+    @Query("SELECT * FROM person_categories WHERE (userId = :userId OR userId = '') AND isSynced = 0")
+    suspend fun getUnsyncedCategories(userId: String): List<PersonCategoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateCategory(category: PersonCategoryEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateCategories(categories: List<PersonCategoryEntity>)
 
-    @Query("UPDATE person_categories SET isDeleted = 1 WHERE uuid = :uuid")
+    @Query("UPDATE person_categories SET isDeleted = 1, isSynced = 0 WHERE uuid = :uuid")
     suspend fun softDeleteCategory(uuid: String)
 
+    @Query("UPDATE person_categories SET isSynced = 1 WHERE uuid = :uuid")
+    suspend fun markCategorySynced(uuid: String)
+
+    @Query("UPDATE person_categories SET isSynced = 1 WHERE uuid IN (:uuids)")
+    suspend fun markCategoriesSynced(uuids: List<String>)
 
     @Transaction
     suspend fun deleteCategoryAndUnbindPersons(categoryUuid: String) {

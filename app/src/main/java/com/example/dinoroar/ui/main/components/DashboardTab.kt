@@ -32,6 +32,9 @@ fun DashboardTab(
     onFilterPerson: (String) -> Unit,
     onNavigateToPersonManage: () -> Unit,
     onNavigateToHandcraftShop: () -> Unit = {},
+    checkInStatus: com.example.dinoroar.network.CheckInStatusResponse? = null,
+    onOpenCheckInDialog: () -> Unit = {},
+    onOpenEnergyHistory: () -> Unit = {},
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier
 ) {
@@ -55,16 +58,20 @@ fun DashboardTab(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. 蛋能量储蓄罐 (包含余额和多维增量展示 + 促销活动提示 + 兑换入口)
+        // 1. 蛋能量储蓄罐 (包含余额和多维增量展示 + 促销活动提示 + 签到入口 + 账本明细 + 商城兑换入口)
         item {
             StickerEnergyPouchPanel(
                 eggEnergy = eggEnergy,
                 energyDelta = energyDelta,
                 securePrefs = securePrefs,
                 activePromotion = activePromotion,
+                checkInStatus = checkInStatus,
+                onOpenCheckInDialog = onOpenCheckInDialog,
+                onOpenEnergyHistory = onOpenEnergyHistory,
                 onNavigateToHandcraftShop = onNavigateToHandcraftShop
             )
         }
+
 
 
 

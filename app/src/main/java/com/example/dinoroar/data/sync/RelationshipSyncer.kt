@@ -28,8 +28,8 @@ class RelationshipSyncer @Inject constructor(
         val userId = securePrefs.currentUserId
         // ==================== 阶段〇：同步关系人分类库 ====================
         Log.i(TAG, "Syncing person categories for user $userId...")
-        val localCategories = personDao.getAllCategoriesIncludingDeleted(userId)
-        val toSyncCategories = localCategories.filter { !it.isDeleted }.map {
+        val unsyncedCategories = personDao.getUnsyncedCategories(userId)
+        val toSyncCategories = unsyncedCategories.filter { !it.isDeleted }.map {
             PersonCategorySyncItem(
                 uuid = it.uuid,
                 name = it.name,
@@ -37,13 +37,18 @@ class RelationshipSyncer @Inject constructor(
                 created_at = it.createdAt
             )
         }
-        val deletedCategoryUuids = localCategories.filter { it.isDeleted }.map { it.uuid }
+        val deletedCategoryUuids = unsyncedCategories.filter { it.isDeleted }.map { it.uuid }
         val categoryPayload = PersonCategorySyncPayload(categories = toSyncCategories, deleted_uuids = deletedCategoryUuids)
         
         try {
             val activeServerCategories = apiService.syncCategories(categoryPayload)
             
-            // 将云端最新活跃分类写入本地
+            // 标记本地已上报分类已同步
+            unsyncedCategories.forEach {
+                personDao.markCategorySynced(it.uuid)
+            }
+
+            // 将云端最新分类写入本地
             activeServerCategories.forEach { serverCat ->
                 val categoryEntity = PersonCategoryEntity(
                     uuid = serverCat.uuid,
@@ -51,17 +56,18 @@ class RelationshipSyncer @Inject constructor(
                     name = serverCat.name,
                     sortOrder = serverCat.sort_order,
                     createdAt = serverCat.created_at ?: java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).format(java.util.Date()),
-                    isDeleted = serverCat.is_deleted
+                    isDeleted = serverCat.is_deleted,
+                    isSynced = true
                 )
                 personDao.insertOrUpdateCategory(categoryEntity)
             }
             
-            // 逻辑同步：如果本地处于活跃状态但不在云端活跃分类里，在本地将其置为已逻辑删除
+            // 逻辑同步：如果本地处于已同步且活跃状态但不在云端分类里，在本地将其置为已逻辑删除
             val serverCategoryUuids = activeServerCategories.map { it.uuid }.toSet()
             val currentLocalCats = personDao.getAllCategories(userId)
             currentLocalCats.forEach { localCat ->
-                if (!localCat.isDeleted && !serverCategoryUuids.contains(localCat.uuid)) {
-                    personDao.insertOrUpdateCategory(localCat.copy(isDeleted = true, userId = userId))
+                if (localCat.isSynced && !serverCategoryUuids.contains(localCat.uuid)) {
+                    personDao.insertOrUpdateCategory(localCat.copy(isDeleted = true, isSynced = true, userId = userId))
                 }
             }
         } catch (e: Exception) {

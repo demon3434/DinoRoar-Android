@@ -11,6 +11,7 @@ import androidx.room.ForeignKey
 @Entity(tableName = "logs", indices = [Index(value = ["userId"])])
 data class LogEntity(
     @PrimaryKey val uuid: String,
+    val serverId: Int = 0,    // 映射服务端的严格整型主键 id，用于强类型资产账本精准溯源
     val userId: String = "", // 绑定关联的账号 Username/ID
     val title: String? = null,
     val incidentDate: String, // ISO-8601 String
@@ -28,6 +29,7 @@ data class LogEntity(
     val serverVersion: Int = 0,
     val isLocalOnly: Boolean = false
 )
+
 
 data class LogWithConfig(
     @Embedded val log: LogEntity,
@@ -76,7 +78,8 @@ data class PersonCategoryEntity(
     val name: String,
     val sortOrder: Int,
     val createdAt: String,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val isSynced: Boolean = false
 )
 
 @Entity(tableName = "persons", indices = [Index(value = ["userId"])])

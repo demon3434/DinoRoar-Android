@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import com.example.dinoroar.ui.main.EnergyDeltaSummary
 import com.example.dinoroar.ui.sticker.StickerExchangeActivity
 import com.example.dinoroar.data.local.SecurePrefs
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.scale
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.runtime.remember
@@ -34,12 +36,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
+
 @Composable
 fun StickerEnergyPouchPanel(
     eggEnergy: Int,
     energyDelta: EnergyDeltaSummary,
     securePrefs: SecurePrefs,
     activePromotion: com.example.dinoroar.network.PromotionSummaryDto? = null,
+    checkInStatus: com.example.dinoroar.network.CheckInStatusResponse? = null,
+    onOpenCheckInDialog: () -> Unit = {},
+    onOpenEnergyHistory: () -> Unit = {},
     onNavigateToHandcraftShop: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -77,15 +83,15 @@ fun StickerEnergyPouchPanel(
         }
 
         Column {
-            // 第一行：左侧蛋能量与余额 + 特惠精简徽章，右侧购物袋图标
+            // 第一行：左侧蛋能量与余额 + 明细入口，右侧签到按钮 + 购物袋图标
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(end = 20.dp), // 留出空隙，防止右侧的购物袋按钮与右上角问号按钮发生视觉冲突
+                    .padding(end = 24.dp), // 留出空隙
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧：蛋能量、余额与精简特惠胶囊
+                // 左侧：蛋能量、余额与可点击的明细标签
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -96,17 +102,41 @@ fun StickerEnergyPouchPanel(
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "余额：$eggEnergy",
                         color = appColors.neonGreen,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.clickable { onOpenEnergyHistory() }
                     )
 
+                    Spacer(modifier = Modifier.width(6.dp))
+                    // 📜 账本明细胶囊
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = appColors.neonBlue.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, appColors.neonBlue.copy(alpha = 0.35f)),
+                        modifier = Modifier.clickable { onOpenEnergyHistory() }
+                    ) {
+                        Text(
+                            text = "明细",
+                            color = appColors.neonBlue,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                // 右侧操作区：特惠活动胶囊 + 手账商城购物袋入口
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     if (activePromotion != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
@@ -118,29 +148,33 @@ fun StickerEnergyPouchPanel(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text("🔥", fontSize = 10.5.sp)
+                                Text("🔥", fontSize = 9.sp)
                                 Text(
                                     text = "特惠",
                                     color = Color(0xFFD946EF),
-                                    fontSize = 10.5.sp,
+                                    fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
                         }
                     }
-                }
 
-                // 右侧的彩色购物袋按钮，尺寸与云朵按钮一致，点击进入手账商城菜单
-                IconButton(
-                    onClick = {
-                        onNavigateToHandcraftShop()
+                    Surface(
+                        shape = CircleShape,
+                        color = appColors.neonGreen.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, appColors.neonGreen.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clickable { onNavigateToHandcraftShop() }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "🛍️",
+                                fontSize = 14.sp
+                            )
+                        }
                     }
-                ) {
-                    Text(
-                        text = "🛍️",
-                        fontSize = 20.sp
-                    )
                 }
             }
 
@@ -155,6 +189,7 @@ fun StickerEnergyPouchPanel(
                     }
                 )
             }
+
 
 
 

@@ -1,33 +1,21 @@
 package com.example.dinoroar.ui.main
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Router
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.text.font.FontWeight
 import com.example.dinoroar.data.DataRepository
 import com.example.dinoroar.data.local.SecurePrefs
 import com.example.dinoroar.data.sync.SyncManager
@@ -38,20 +26,12 @@ import com.example.dinoroar.theme.LocalAppColors
 import com.example.dinoroar.ui.main.components.*
 import kotlinx.coroutines.launch
 
-
 enum class MainTab {
-    DASHBOARD,    // 首页看板
-    DIARY_LIST,   // 我的日记
-    PERSONS,      // 关系人管理
+    DASHBOARD,      // 首页看板
+    DIARY_LIST,     // 我的日记
+    PERSONS,        // 关系人管理
     HANDCRAFT_SHOP  // 手账商城
 }
-
-private data class NetworkLineState(
-    val title: String,
-    val isIntranet: Boolean,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val color: Color
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +45,7 @@ fun MainScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToPersonCategoryManage: () -> Unit,
+    onNavigateToEnergyLedger: () -> Unit = {},
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = androidx.lifecycle.viewmodel.compose.viewModel {
@@ -73,8 +54,9 @@ fun MainScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val appColors = LocalAppColors.current
 
-    // 从 ViewModel 中订阅所有需要的数据流
+    // 从 ViewModel 中订阅数据流
     val logs by viewModel.logs.collectAsStateWithLifecycle()
     val allAttachments by viewModel.allAttachments.collectAsStateWithLifecycle()
     val allCrossRefs by viewModel.allCrossRefs.collectAsStateWithLifecycle()
@@ -87,28 +69,65 @@ fun MainScreen(
     val energyDelta by viewModel.energyDeltaSummary.collectAsStateWithLifecycle()
     val reviewSummary by viewModel.dashboardReviewSummary.collectAsStateWithLifecycle()
     val categorySummaries by viewModel.categoryPersonsSummary.collectAsStateWithLifecycle()
-    
+
     val selectedFilterPersonUuids by viewModel.selectedFilterPersonUuids.collectAsStateWithLifecycle()
     val selectedFilterMonths by viewModel.selectedFilterMonths.collectAsStateWithLifecycle()
     val selectedFilterMoods by viewModel.selectedFilterMoods.collectAsStateWithLifecycle()
 
+    val checkInStatus by viewModel.checkInStatus.collectAsStateWithLifecycle()
+    val isCheckingIn by viewModel.isCheckingIn.collectAsStateWithLifecycle()
+
+    var bubbleState by remember { mutableStateOf(CheckInBubbleState()) }
+
+    fun showBubble(icon: String, title: String, message: String, isCrit: Boolean = false, isSuccess: Boolean = true) {
+        bubbleState = CheckInBubbleState(
+            isVisible = true,
+            icon = icon,
+            title = title,
+            message = message,
+            isCrit = isCrit,
+            isSuccess = isSuccess
+        )
+    }
+
+    fun handleCheckInAction() {
+        if (checkInStatus?.has_checked_in_today == true) {
+            showBubble("ℹ️", "今日已签到", "您今天已经敲过蛋啦，明天继续加油哦！", isCrit = false, isSuccess = true)
+            return
+        }
+        if (isCheckingIn) return
+
+        viewModel.performCheckIn(
+            apiService = apiService,
+            securePrefs = securePrefs,
+            onSuccess = { res ->
+                if (res.already_checked_in) {
+                    showBubble("ℹ️", "今日已签到", res.message.ifBlank { "今日已经完成敲蛋签到啦！" }, isCrit = false, isSuccess = true)
+                } else {
+                    val critText = if (res.is_crit) " 💥 触发欧皇暴击！" else ""
+                    showBubble(
+                        icon = "🎉",
+                        title = "敲蛋签到成功！$critText",
+                        message = "连续签到第 ${res.streak_days} 天 · 获得 +${res.total_reward} 蛋能量！",
+                        isCrit = res.is_crit,
+                        isSuccess = true
+                    )
+                }
+            },
+            onError = { err ->
+                showBubble("❌", "签到失败", err, isCrit = false, isSuccess = false)
+            }
+        )
+    }
+
     val syncState by syncManager.syncState.collectAsStateWithLifecycle()
     val allDinoConfigs by repository.getAllActiveDinoConfigsFlow().collectAsStateWithLifecycle(initialValue = emptyList())
 
-    // 触发启动同步
+    // 触发启动同步与签到状态刷新 (仅拉取状态，不自动签到)
     LaunchedEffect(Unit) {
         syncManager.sync()
+        viewModel.fetchCheckInStatus(apiService)
     }
-
-    val appColors = LocalAppColors.current
-    val darkBg = appColors.darkBg
-    val neonBlue = appColors.neonBlue
-    val neonGreen = appColors.neonGreen
-    val neonAmber = appColors.neonAmber
-    val textPrimary = appColors.textPrimary
-    val textSecondary = appColors.textSecondary
-    val cardBg = appColors.cardBg
-    val neonRed = appColors.neonRed
 
     val observedEggEnergy by produceState(initialValue = securePrefs.eggEnergy) {
         while (true) {
@@ -134,395 +153,182 @@ fun MainScreen(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                drawerContainerColor = darkBg,
+                drawerContainerColor = appColors.darkBg,
                 modifier = Modifier.width(280.dp).fillMaxHeight()
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Column(
-                            modifier = Modifier.padding(vertical = 24.dp, horizontal = 12.dp)
-                        ) {
-                            val nickName = securePrefs.nickname.ifBlank { "勇敢小润" }
-                            Text(
-                                text = "🦖 $nickName 🦕",
-                                color = neonAmber,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "🥚 蛋能量: $observedEggEnergy",
-                                color = neonGreen,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                            )
+                MainDrawerContent(
+                    nickName = securePrefs.nickname.ifBlank { "勇敢小润" },
+                    observedEggEnergy = observedEggEnergy,
+                    checkInStatus = checkInStatus,
+                    isCheckingIn = isCheckingIn,
+                    onCheckInClick = { handleCheckInAction() },
+                    onNavigateToEnergyLedger = {
+                        coroutineScope.launch { drawerState.close() }
+                        onNavigateToEnergyLedger()
+                    },
+                    currentTab = currentTab,
+                    onTabSelected = { tab ->
+                        currentTab = tab
+                        coroutineScope.launch { drawerState.close() }
+                    },
+                    onNavigateToSettings = {
+                        coroutineScope.launch {
+                            drawerState.close()
+                            onNavigateToSettings()
                         }
-
-                        HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 1.dp)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        NavigationDrawerItem(
-                            label = { Text("🏠 首页看板", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-                            selected = currentTab == MainTab.DASHBOARD,
-                            onClick = {
-                                currentTab = MainTab.DASHBOARD
-                                coroutineScope.launch { drawerState.close() }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                selectedContainerColor = neonGreen.copy(alpha = 0.15f),
-                                unselectedContainerColor = Color.Transparent,
-                                selectedTextColor = neonGreen,
-                                unselectedTextColor = textSecondary
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        NavigationDrawerItem(
-                            label = { Text("📓 我的日记", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-                            selected = currentTab == MainTab.DIARY_LIST,
-                            onClick = {
-                                currentTab = MainTab.DIARY_LIST
-                                coroutineScope.launch { drawerState.close() }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                selectedContainerColor = neonBlue.copy(alpha = 0.15f),
-                                unselectedContainerColor = Color.Transparent,
-                                selectedTextColor = neonBlue,
-                                unselectedTextColor = textSecondary
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        NavigationDrawerItem(
-                            label = { Text("👥 关系人管理", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-                            selected = currentTab == MainTab.PERSONS,
-                            onClick = {
-                                currentTab = MainTab.PERSONS
-                                coroutineScope.launch { drawerState.close() }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                selectedContainerColor = neonGreen.copy(alpha = 0.15f),
-                                unselectedContainerColor = Color.Transparent,
-                                selectedTextColor = neonGreen,
-                                unselectedTextColor = textSecondary
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                         NavigationDrawerItem(
-                             label = { Text("🛍️ 手账商城", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-                             selected = currentTab == MainTab.HANDCRAFT_SHOP,
-                             onClick = {
-                                 currentTab = MainTab.HANDCRAFT_SHOP
-                                 coroutineScope.launch { drawerState.close() }
-                             },
-                             colors = NavigationDrawerItemDefaults.colors(
-                                 selectedContainerColor = neonGreen.copy(alpha = 0.15f),
-                                 unselectedContainerColor = Color.Transparent,
-                                 selectedTextColor = neonGreen,
-                                 unselectedTextColor = textSecondary
-                             )
-                         )
+                    },
+                    onLogout = {
+                        coroutineScope.launch {
+                            drawerState.close()
+                            onLogout()
+                        }
                     }
-
-                    Column {
-                        HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 1.dp)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        NavigationDrawerItem(
-                            label = { Text("⚙️ 系统设置", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-                            selected = false,
-                            onClick = {
-                                coroutineScope.launch {
-                                    drawerState.close()
-                                    onNavigateToSettings()
-                                }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent,
-                                unselectedTextColor = textPrimary
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        NavigationDrawerItem(
-                            label = { Text("🚪 退出登录", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-                            selected = false,
-                            onClick = {
-                                coroutineScope.launch {
-                                    drawerState.close()
-                                    onLogout()
-                                }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent,
-                                unselectedTextColor = neonRed
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                    }
-                }
+                )
             }
         }
     ) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = when(currentTab) {
-                                MainTab.DASHBOARD -> "首页看板"
-                                MainTab.DIARY_LIST -> "我的日记"
-                                MainTab.PERSONS -> "关系人管理"
-                                MainTab.HANDCRAFT_SHOP -> "手账商城"
-                            },
-                            color = neonAmber,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    },
-                    navigationIcon = {
-                        val selectedFilterPersons by viewModel.selectedFilterPersonUuids.collectAsStateWithLifecycle()
-
+                MainTopBar(
+                    currentTab = currentTab,
+                    hasFilterPersons = selectedFilterPersonsForBack.isNotEmpty(),
+                    onMenuClick = { coroutineScope.launch { drawerState.open() } },
+                    onBackClick = {
                         if (currentTab == MainTab.HANDCRAFT_SHOP) {
-                            IconButton(onClick = { currentTab = MainTab.DASHBOARD }) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = neonAmber
-                                )
-                            }
-                        } else if (currentTab == MainTab.DIARY_LIST && selectedFilterPersons.isNotEmpty()) {
-                            IconButton(onClick = {
-                                viewModel.clearFilter()
-                                currentTab = MainTab.DASHBOARD
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = neonAmber
-                                )
-                            }
-                        } else {
-                            IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Menu",
-                                    tint = neonAmber
-                                )
-                            }
+                            currentTab = MainTab.DASHBOARD
+                        } else if (currentTab == MainTab.DIARY_LIST && selectedFilterPersonsForBack.isNotEmpty()) {
+                            viewModel.clearFilter()
+                            currentTab = MainTab.DASHBOARD
                         }
                     },
-                    actions = {
-                        var isNetworkInfoExpanded by remember { mutableStateOf(false) }
-                        val currentServerUrl = securePrefs.serverUrl ?: ""
-                        val intranetUrl = securePrefs.intranetUrl ?: ""
-                        val extranetUrl = securePrefs.extranetUrl ?: ""
-
-                        val netState = when {
-                            currentServerUrl.isBlank() -> {
-                                NetworkLineState("未配置服务器", false, Icons.Default.CloudOff, Color.Gray)
-                            }
-                            intranetUrl.isNotBlank() && currentServerUrl.startsWith(intranetUrl) -> {
-                                NetworkLineState("家庭局域网 (内网)", true, Icons.Default.Router, neonGreen)
-                            }
-                            extranetUrl.isNotBlank() && currentServerUrl.startsWith(extranetUrl) -> {
-                                NetworkLineState("云端服务线路 (外网)", false, Icons.Default.Public, neonBlue)
-                            }
-                            else -> {
-                                NetworkLineState("自定义网络通道", false, Icons.Default.Dns, neonAmber)
+                    observedEggEnergy = observedEggEnergy,
+                    checkInStatus = checkInStatus,
+                    isCheckingIn = isCheckingIn,
+                    onCheckInClick = { handleCheckInAction() },
+                    onNavigateToEnergyLedger = onNavigateToEnergyLedger,
+                    currentServerUrl = securePrefs.serverUrl ?: "",
+                    intranetUrl = securePrefs.intranetUrl ?: "",
+                    extranetUrl = securePrefs.extranetUrl ?: "",
+                    syncState = syncState,
+                    onSyncClick = {
+                        coroutineScope.launch {
+                            val result = syncManager.sync(isManual = true)
+                            if (result is SyncState.Success) {
+                                Toast.makeText(context, "同步成功！", Toast.LENGTH_SHORT).show()
+                            } else if (result is SyncState.Error) {
+                                Toast.makeText(context, "同步失败: ${result.error}", Toast.LENGTH_SHORT).show()
                             }
                         }
-
-                        Box {
-                            IconButton(onClick = { isNetworkInfoExpanded = true }) {
-                                Icon(
-                                    imageVector = netState.icon,
-                                    contentDescription = "Network State Indicator",
-                                    tint = netState.color
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = isNetworkInfoExpanded,
-                                onDismissRequest = { isNetworkInfoExpanded = false },
-                                modifier = Modifier
-                                    .background(cardBg)
-                                    .border(1.dp, neonAmber.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                                    .padding(12.dp)
-                                    .width(220.dp)
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(
-                                        text = "📡 同步通道详情",
-                                        color = neonAmber,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                    )
-                                    HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
-                                    Text(
-                                        text = "线路: ${netState.title}",
-                                        color = textPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                    )
-                                    Text(
-                                        text = "物理地址: ${currentServerUrl.ifBlank { "未连接" }}",
-                                        color = textSecondary,
-                                        fontSize = 11.sp,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        lineHeight = 15.sp
-                                    )
-                                    if (netState.isIntranet) {
-                                        Text(
-                                            text = "✨ 正在享受局域网极速同步",
-                                            color = neonGreen,
-                                            fontSize = 11.sp,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                        )
-                                    } else if (currentServerUrl.isNotBlank() && currentServerUrl == extranetUrl) {
-                                        Text(
-                                            text = "☁️ 已切为外网云端兜底线路",
-                                            color = neonBlue,
-                                            fontSize = 11.sp,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    val result = syncManager.sync(isManual = true)
-                                    if (result is SyncState.Success) {
-                                        Toast.makeText(context, "同步成功！", Toast.LENGTH_SHORT).show()
-                                    } else if (result is SyncState.Error) {
-                                        Toast.makeText(context, "同步失败: ${result.error}", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Cloud,
-                                contentDescription = "Sync",
-                                tint = if (syncState is SyncState.Syncing) neonBlue else neonAmber
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = darkBg)
+                    }
                 )
             },
             floatingActionButton = {
                 if (currentTab != MainTab.HANDCRAFT_SHOP) {
                     FloatingActionButton(
                         onClick = { onNavigateToCreate(null) },
-                        containerColor = neonAmber,
+                        containerColor = appColors.neonAmber,
                         contentColor = Color.Black
                     ) {
                         Icon(imageVector = Icons.Default.Add, contentDescription = "Add Diary")
                     }
                 }
             },
-            containerColor = darkBg,
-            modifier = modifier
+            containerColor = appColors.darkBg
         ) { innerPadding ->
-            when (currentTab) {
-                MainTab.DASHBOARD -> {
-                    DashboardTab(
-                        logs = logs,
-                        allAttachments = allAttachments,
-                        allPersons = allPersons,
-                        allCrossRefs = allCrossRefs,
-                        allCategories = allCategories,
-                        securePrefs = securePrefs,
-                        eggEnergy = observedEggEnergy,
-                        energyDelta = energyDelta,
-                        reviewSummary = reviewSummary,
-                        categorySummaries = categorySummaries,
-                        apiService = apiService,
-                        onNavigateToDetail = onNavigateToDetail,
-                        onNavigateToCreate = onNavigateToCreate,
-                        onFilterPerson = { personUuid ->
-                            viewModel.applyFilter(setOf(personUuid), emptySet(), emptySet())
-                            currentTab = MainTab.DIARY_LIST
-                        },
-                        onNavigateToPersonManage = { currentTab = MainTab.PERSONS },
-                        onNavigateToHandcraftShop = { currentTab = MainTab.HANDCRAFT_SHOP },
-                        innerPadding = innerPadding
-                    )
-
-
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (currentTab) {
+                    MainTab.DASHBOARD -> {
+                        DashboardTab(
+                            logs = logs,
+                            allAttachments = allAttachments,
+                            allPersons = allPersons,
+                            allCrossRefs = allCrossRefs,
+                            allCategories = allCategories,
+                            securePrefs = securePrefs,
+                            eggEnergy = observedEggEnergy,
+                            energyDelta = energyDelta,
+                            reviewSummary = reviewSummary,
+                            categorySummaries = categorySummaries,
+                            apiService = apiService,
+                            onNavigateToDetail = onNavigateToDetail,
+                            onNavigateToCreate = onNavigateToCreate,
+                            onFilterPerson = { personUuid ->
+                                viewModel.applyFilter(setOf(personUuid), emptySet(), emptySet())
+                                currentTab = MainTab.DIARY_LIST
+                            },
+                            onNavigateToPersonManage = onNavigateToPersonCategoryManage,
+                            onNavigateToHandcraftShop = { currentTab = MainTab.HANDCRAFT_SHOP },
+                            checkInStatus = checkInStatus,
+                            onOpenCheckInDialog = { handleCheckInAction() },
+                            onOpenEnergyHistory = onNavigateToEnergyLedger,
+                            innerPadding = innerPadding
+                        )
+                    }
+                    MainTab.DIARY_LIST -> {
+                        DiaryListTab(
+                            filteredLogs = filteredLogs,
+                            logPersonMap = logPersonMap,
+                            allPersons = allPersons,
+                            allCategories = allCategories,
+                            allDinoConfigs = allDinoConfigs,
+                            availableMonths = availableMonths,
+                            selectedFilterPersonUuids = selectedFilterPersonUuids,
+                            selectedFilterMonths = selectedFilterMonths,
+                            selectedFilterMoods = selectedFilterMoods,
+                            sortedPersonsForFilter = sortedPersonsForFilter,
+                            onSearchQueryChange = { q -> viewModel.searchQuery.value = q },
+                            onConfirmFilter = { personUuids, months, moods ->
+                                viewModel.applyFilter(personUuids, months, moods)
+                            },
+                            onClearFilter = {
+                                viewModel.clearFilter()
+                            },
+                            onRemovePersonFilter = { personUuid ->
+                                viewModel.applyFilter(selectedFilterPersonUuids - personUuid, selectedFilterMonths, selectedFilterMoods)
+                            },
+                            onRemoveMonthFilter = { month ->
+                                viewModel.applyFilter(selectedFilterPersonUuids, selectedFilterMonths - month, selectedFilterMoods)
+                            },
+                            onRemoveMoodFilter = { moodId ->
+                                viewModel.applyFilter(selectedFilterPersonUuids, selectedFilterMonths, selectedFilterMoods - moodId)
+                            },
+                            onDeleteLog = { logUuid ->
+                                coroutineScope.launch {
+                                    repository.softDeleteLog(logUuid)
+                                    Toast.makeText(context, "日记已删除，将在下次同步时上报", Toast.LENGTH_SHORT).show()
+                                    syncManager.sync()
+                                }
+                            },
+                            onNavigateToCreate = onNavigateToCreate,
+                            onNavigateToDetail = onNavigateToDetail,
+                            repository = repository,
+                            syncManager = syncManager,
+                            listState = listState,
+                            innerPadding = innerPadding
+                        )
+                    }
+                    MainTab.PERSONS -> {
+                        PersonsTab(
+                            allPersons = allPersons,
+                            allCategories = allCategories,
+                            repository = repository,
+                            onNavigateToPersonCategoryManage = onNavigateToPersonCategoryManage,
+                            innerPadding = innerPadding
+                        )
+                    }
+                    MainTab.HANDCRAFT_SHOP -> {
+                        HandcraftShopMenuScreen(
+                            apiService = apiService,
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
                 }
-                MainTab.DIARY_LIST -> {
-                    DiaryListTab(
-                        filteredLogs = filteredLogs,
-                        logPersonMap = logPersonMap,
-                        allPersons = allPersons,
-                        allCategories = allCategories,
-                        allDinoConfigs = allDinoConfigs,
-                        availableMonths = availableMonths,
-                        selectedFilterPersonUuids = selectedFilterPersonUuids,
-                        selectedFilterMonths = selectedFilterMonths,
-                        selectedFilterMoods = selectedFilterMoods,
-                        sortedPersonsForFilter = sortedPersonsForFilter,
-                        onSearchQueryChange = { query ->
-                            viewModel.updateSearchQuery(query)
-                        },
-                        onConfirmFilter = { personUuids, months, moods ->
-                            viewModel.applyFilter(personUuids, months, moods)
-                        },
-                        onClearFilter = {
-                            viewModel.clearFilter()
-                        },
-                        onRemovePersonFilter = { personUuid ->
-                            viewModel.applyFilter(selectedFilterPersonUuids - personUuid, selectedFilterMonths, selectedFilterMoods)
-                        },
-                        onRemoveMonthFilter = { month ->
-                            viewModel.applyFilter(selectedFilterPersonUuids, selectedFilterMonths - month, selectedFilterMoods)
-                        },
-                        onRemoveMoodFilter = { moodId ->
-                            viewModel.applyFilter(selectedFilterPersonUuids, selectedFilterMonths, selectedFilterMoods - moodId)
-                        },
-                        onDeleteLog = { logUuid ->
-                            coroutineScope.launch {
-                                repository.softDeleteLog(logUuid)
-                                Toast.makeText(context, "日记已删除，将在下次同步时上报", Toast.LENGTH_SHORT).show()
-                                syncManager.sync()
-                            }
-                        },
-                        onNavigateToCreate = onNavigateToCreate,
-                        onNavigateToDetail = onNavigateToDetail,
-                        repository = repository,
-                        syncManager = syncManager,
-                        listState = listState,
-                        innerPadding = innerPadding
-                    )
-                }
-                MainTab.PERSONS -> {
-                    PersonsTab(
-                        allPersons = allPersons,
-                        allCategories = allCategories,
-                        repository = repository,
-                        onNavigateToPersonCategoryManage = onNavigateToPersonCategoryManage,
-                        innerPadding = innerPadding
-                    )
-                }
-                 MainTab.HANDCRAFT_SHOP -> {
-                     HandcraftShopMenuScreen(
-                         apiService = apiService,
-                         modifier = Modifier.padding(innerPadding)
-                     )
-                 }
 
+                // 每日签到敲蛋结果顶层提示弹窗 (Topmost Check-in Dialog)
+                CheckInBubble(
+                    state = bubbleState,
+                    onDismiss = { bubbleState = bubbleState.copy(isVisible = false) }
+                )
             }
         }
     }

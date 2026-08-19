@@ -45,8 +45,11 @@ object DatabaseModule {
             DinoDatabase.MIGRATION_10_11,
             DinoDatabase.MIGRATION_11_12,
             DinoDatabase.MIGRATION_13_14,
-            DinoDatabase.MIGRATION_14_15
+            DinoDatabase.MIGRATION_14_15,
+            DinoDatabase.MIGRATION_15_16,
+            DinoDatabase.MIGRATION_16_17
         )
+
         .addCallback(object : androidx.room.RoomDatabase.Callback() {
             override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 super.onCreate(db)

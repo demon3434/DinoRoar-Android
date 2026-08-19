@@ -246,12 +246,31 @@ interface DinoApiService {
     @GET("api/promotions/active-summary")
     suspend fun getActivePromotionsSummary(): List<PromotionSummaryDto>
 
+    @GET("api/checkin/status")
+    suspend fun getCheckInStatus(): CheckInStatusResponse
+
+    @POST("api/checkin")
+    suspend fun performCheckIn(
+        @Body request: CheckInRequest
+    ): CheckInResultResponse
+
+    @GET("api/energy/transactions")
+    suspend fun getEnergyTransactions(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 20,
+        @Query("filter_type") filterType: String? = null,
+        @Query("time_range") timeRange: String? = null,
+        @Query("month") month: String? = null
+    ): EnergyTransactionPageResponse
+
+
     @Multipart
     @POST("api/stt/transcribe")
     suspend fun transcribeAudio(
         @Part file: MultipartBody.Part
     ): SttTranscribeResponse
 }
+
 
 @Serializable
 data class PromotionSummaryDto(
@@ -377,5 +396,9 @@ data class CanvasSyncPayload(
 data class CanvasExchangeRequest(
     val canvas_set_id: Int
 )
+
+
+
+
 
 

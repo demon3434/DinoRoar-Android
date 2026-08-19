@@ -217,7 +217,11 @@ class DefaultDataRepository @Inject constructor(
     }
 
     override suspend fun insertCategory(category: PersonCategoryEntity) {
-        val targetCategory = if (category.userId.isBlank()) category.copy(userId = currentUserId) else category
+        val targetCategory = if (category.userId.isBlank()) {
+            category.copy(userId = currentUserId, isSynced = false)
+        } else {
+            category.copy(isSynced = false)
+        }
         personDao.insertOrUpdateCategory(targetCategory)
     }
 
@@ -228,7 +232,11 @@ class DefaultDataRepository @Inject constructor(
     override suspend fun updateCategoriesOrder(categories: List<PersonCategoryEntity>) {
         database.withTransaction {
             val updated = categories.mapIndexed { index, cat ->
-                val targetCat = if (cat.userId.isBlank()) cat.copy(userId = currentUserId, sortOrder = index) else cat.copy(sortOrder = index)
+                val targetCat = if (cat.userId.isBlank()) {
+                    cat.copy(userId = currentUserId, sortOrder = index, isSynced = false)
+                } else {
+                    cat.copy(sortOrder = index, isSynced = false)
+                }
                 targetCat
             }
             personDao.insertOrUpdateCategories(updated)
