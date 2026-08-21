@@ -97,7 +97,7 @@ fun CheckInBubble(
                         border = BorderStroke(1.dp, Color(0xFFEA580C).copy(alpha = 0.4f))
                     ) {
                         Text(
-                            text = "💥 触发欧皇暴击！",
+                            text = "💥 触发破壳暴击！",
                             color = Color(0xFFEA580C),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,

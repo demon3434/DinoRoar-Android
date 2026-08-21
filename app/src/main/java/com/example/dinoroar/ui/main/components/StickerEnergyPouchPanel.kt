@@ -200,12 +200,20 @@ fun StickerEnergyPouchPanel(
                 AlertDialog(
                     onDismissRequest = { showHelpDialog = false },
                     confirmButton = {
-                        TextButton(onClick = { showHelpDialog = false }) {
+                        Button(
+                            onClick = { showHelpDialog = false },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = appColors.neonBlue
+                            ),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                        ) {
                             Text(
                                 text = "我知道啦",
-                                color = appColors.neonAmber,
+                                color = Color.White,
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 14.sp
                             )
                         }
                     },

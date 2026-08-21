@@ -296,29 +296,10 @@ fun StickerPickerScreen(
                     }
                 },
                 actions = {
-                    FilterChip(
+                    com.example.dinoroar.ui.common.ElegantFilterChip(
+                        text = "已拥有",
                         selected = onlyOwned,
-                        onClick = { onlyOwned = !onlyOwned },
-                        label = {
-                            Text(
-                                text = if (onlyOwned) "✓ 已拥有" else "已拥有",
-                                fontSize = 11.sp,
-                                fontWeight = if (onlyOwned) FontWeight.Bold else FontWeight.Normal,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        },
-                        shape = RoundedCornerShape(50),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = neonGreen.copy(alpha = 0.2f),
-                            selectedLabelColor = neonGreen,
-                            containerColor = Color.Transparent,
-                            labelColor = textSecondary
-                        ),
-                        border = BorderStroke(
-                            1.dp,
-                            if (onlyOwned) neonGreen else textSecondary.copy(alpha = 0.3f)
-                        ),
-                        modifier = Modifier.height(30.dp)
+                        onToggle = { onlyOwned = !onlyOwned }
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))

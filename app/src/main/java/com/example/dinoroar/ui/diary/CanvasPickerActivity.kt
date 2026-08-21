@@ -176,17 +176,22 @@ fun CanvasPickerScreen(
     // 联动控制组件状态
     val leftListState = rememberLazyListState()
     val rightListState = rememberLazyListState()
-
     var onlyOwned by remember { mutableStateOf(true) }
 
-    val activeSeries = remember(seriesList, setsList, unlockedSetIds, onlyOwned) {
-        val sorted = seriesList.sortedBy { it.sortOrder }
-        if (onlyOwned) {
-            sorted.filter { series ->
-                setsList.any { it.seriesId == series.id && it.id in unlockedSetIds }
+    val activeSeries = remember(seriesList, setsList, instancesList, unlockedSetIds, onlyOwned) {
+        val sorted = seriesList.filter { it.isActive && !it.isDeleted }.sortedBy { it.sortOrder }
+        sorted.filter { series ->
+            val validSets = setsList.filter { set ->
+                set.seriesId == series.id && 
+                set.isActive && 
+                !set.isDeleted && 
+                instancesList.any { it.canvasSetId == set.id && it.isActive && !it.isDeleted }
             }
-        } else {
-            sorted
+            if (onlyOwned) {
+                validSets.any { it.id in unlockedSetIds }
+            } else {
+                validSets.isNotEmpty()
+            }
         }
     }
 
@@ -343,29 +348,10 @@ fun CanvasPickerScreen(
                     }
                 },
                 actions = {
-                    FilterChip(
+                    com.example.dinoroar.ui.common.ElegantFilterChip(
+                        text = "已拥有",
                         selected = onlyOwned,
-                        onClick = { onlyOwned = !onlyOwned },
-                        label = {
-                            Text(
-                                text = if (onlyOwned) "✓ 已拥有" else "已拥有",
-                                fontSize = 11.sp,
-                                fontWeight = if (onlyOwned) FontWeight.Bold else FontWeight.Normal,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        },
-                        shape = RoundedCornerShape(50),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = neonGreen.copy(alpha = 0.2f),
-                            selectedLabelColor = neonGreen,
-                            containerColor = Color.Transparent,
-                            labelColor = textSecondary
-                        ),
-                        border = BorderStroke(
-                            1.dp,
-                            if (onlyOwned) neonGreen else textSecondary.copy(alpha = 0.3f)
-                        ),
-                        modifier = Modifier.height(30.dp)
+                        onToggle = { onlyOwned = !onlyOwned }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
@@ -501,8 +487,13 @@ fun CanvasPickerScreen(
                         contentPadding = PaddingValues(bottom = 20.dp)
                     ) {
                         itemsIndexed(activeSeries) { _, series ->
-                            val setsInSeries = remember(setsList, series.id, unlockedSetIds, onlyOwned) {
-                                val list = setsList.filter { it.seriesId == series.id }
+                            val setsInSeries = remember(setsList, instancesList, series.id, unlockedSetIds, onlyOwned) {
+                                val list = setsList.filter { set ->
+                                    set.seriesId == series.id && 
+                                    set.isActive && 
+                                    !set.isDeleted && 
+                                    instancesList.any { it.canvasSetId == set.id && it.isActive && !it.isDeleted }
+                                }
                                 if (onlyOwned) {
                                     list.filter { it.id in unlockedSetIds }
                                 } else {
@@ -521,7 +512,9 @@ fun CanvasPickerScreen(
                                         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                                     )
                                     setsInSeries.forEach { set ->
-                                        val setInstances = instancesList.filter { it.canvasSetId == set.id }
+                                        val setInstances = instancesList.filter { 
+                                            it.canvasSetId == set.id && it.isActive && !it.isDeleted 
+                                        }
                                         CanvasSetFoodItemCard(
                                             set = set,
                                             instances = setInstances,

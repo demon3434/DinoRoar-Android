@@ -102,13 +102,33 @@ fun MainScreen(
             securePrefs = securePrefs,
             onSuccess = { res ->
                 if (res.already_checked_in) {
-                    showBubble("ℹ️", "今日已签到", res.message.ifBlank { "今日已经完成敲蛋签到啦！" }, isCrit = false, isSuccess = true)
+                    showBubble("ℹ️", "今日已签到", res.message.ifBlank { "今日已经完成敲蛋签到啦，明天继续加油哦！" }, isCrit = false, isSuccess = true)
                 } else {
-                    val critText = if (res.is_crit) " 💥 触发欧皇暴击！" else ""
+                    val (title, message) = when {
+                        res.is_crit -> {
+                            val titleText = "敲蛋签到成功！ 💥 触发破壳暴击！"
+                            val msgText = if (res.streak_bonus > 0) {
+                                "已连续打卡 ${res.streak_days} 天 · 破壳暴击 (+${res.base_reward}) + 连签奖励 (+${res.streak_bonus})，共获得 +${res.total_reward} 蛋能量！"
+                            } else {
+                                "破壳大惊喜！触发暴击获得超额奖励 +${res.total_reward} 蛋能量！"
+                            }
+                            titleText to msgText
+                        }
+                        res.streak_bonus > 0 -> {
+                            val titleText = "敲蛋签到成功！"
+                            val msgText = "已连续打卡 ${res.streak_days} 天（含连签奖励 +${res.streak_bonus}）· 共获得 +${res.total_reward} 蛋能量！"
+                            titleText to msgText
+                        }
+                        else -> {
+                            val titleText = "敲蛋签到成功！"
+                            val msgText = "今日打卡完成 · 获得 +${res.total_reward} 蛋能量！"
+                            titleText to msgText
+                        }
+                    }
                     showBubble(
-                        icon = "🎉",
-                        title = "敲蛋签到成功！$critText",
-                        message = "连续签到第 ${res.streak_days} 天 · 获得 +${res.total_reward} 蛋能量！",
+                        icon = if (res.is_crit) "🦖" else "🎉",
+                        title = title,
+                        message = message,
                         isCrit = res.is_crit,
                         isSuccess = true
                     )

@@ -219,7 +219,7 @@ fun CheckInDialog(
                         modifier = Modifier.padding(horizontal = 8.dp)
                     ) {
                         Text(
-                            text = "🔥 欧皇大暴击！触发了超高额蛋能量加成！",
+                            text = "💥 触发破壳暴击！获得超高额蛋能量奖励！",
                             color = Color(0xFFFCA5A5),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,

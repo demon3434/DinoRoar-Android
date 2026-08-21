@@ -125,6 +125,10 @@ fun CanvasExchangeScreen(
                     }
                 }
             }
+            canvasSeriesDao.deleteAll()
+            canvasSetDao.deleteAll()
+            canvasInstanceDao.deleteAll()
+
             canvasSeriesDao.insertOrUpdateAll(newSeries)
             canvasSetDao.insertOrUpdateAll(newSets)
             canvasInstanceDao.insertOrUpdateAll(newInstances)
@@ -147,14 +151,20 @@ fun CanvasExchangeScreen(
 
     var onlyUnowned by remember { mutableStateOf(false) }
 
-    val visibleSeriesList = remember(seriesList, setsList, unlockedSetIds, onlyUnowned) {
-        val sorted = seriesList.sortedBy { it.sortOrder }
-        if (onlyUnowned) {
-            sorted.filter { series ->
-                setsList.any { it.seriesId == series.id && it.id !in unlockedSetIds }
+    val visibleSeriesList = remember(seriesList, setsList, instancesList, unlockedSetIds, onlyUnowned) {
+        val sorted = seriesList.filter { it.isActive && !it.isDeleted }.sortedBy { it.sortOrder }
+        sorted.filter { series ->
+            val validSets = setsList.filter { set ->
+                set.seriesId == series.id && 
+                set.isActive && 
+                !set.isDeleted && 
+                instancesList.any { it.canvasSetId == set.id && it.isActive && !it.isDeleted }
             }
-        } else {
-            sorted
+            if (onlyUnowned) {
+                validSets.any { it.id !in unlockedSetIds }
+            } else {
+                validSets.isNotEmpty()
+            }
         }
     }
 
@@ -206,30 +216,10 @@ fun CanvasExchangeScreen(
                         modifier = Modifier.padding(end = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        FilterChip(
+                        com.example.dinoroar.ui.common.ElegantFilterChip(
+                            text = "未拥有",
                             selected = onlyUnowned,
-                            onClick = { onlyUnowned = !onlyUnowned },
-                            label = {
-                                Text(
-                                    text = if (onlyUnowned) "✓ 未拥有" else "未拥有",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (onlyUnowned) FontWeight.Bold else FontWeight.Normal,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            },
-                            shape = RoundedCornerShape(50),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = appColors.neonGreen.copy(alpha = 0.2f),
-                                selectedLabelColor = appColors.neonGreen,
-                                containerColor = Color.Transparent,
-                                labelColor = textSecondary
-                            ),
-                            border = BorderStroke(
-                                1.dp,
-                                if (onlyUnowned) appColors.neonGreen else textSecondary.copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.height(30.dp)
-
+                            onToggle = { onlyUnowned = !onlyUnowned }
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -334,7 +324,12 @@ fun CanvasExchangeScreen(
                                 modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
                             )
 
-                            val rawSetsInSeries = setsList.filter { it.seriesId == series.id }
+                            val rawSetsInSeries = setsList.filter { set ->
+                                set.seriesId == series.id && 
+                                set.isActive && 
+                                !set.isDeleted && 
+                                instancesList.any { it.canvasSetId == set.id && it.isActive && !it.isDeleted }
+                            }
                             val setsInSeries = if (onlyUnowned) rawSetsInSeries.filter { it.id !in unlockedSetIds } else rawSetsInSeries
                             if (setsInSeries.isEmpty()) {
                                 Text(
@@ -354,7 +349,9 @@ fun CanvasExchangeScreen(
                                     ) {
                                         rowSets.forEach { canvasSet ->
                                             val isUnlocked = unlockedSetIds.contains(canvasSet.id)
-                                            val setInstances = instancesList.filter { it.canvasSetId == canvasSet.id }
+                                            val setInstances = instancesList.filter { 
+                                                it.canvasSetId == canvasSet.id && it.isActive && !it.isDeleted 
+                                            }
 
                                             // 记录当前卡片预览的 instance index，利用 canvasSet.id 隔离
                                             var currentIdx by remember(canvasSet.id) { mutableIntStateOf(0) }

@@ -217,30 +217,10 @@ fun StickerExchangeScreen(
                             modifier = Modifier.padding(end = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            FilterChip(
+                            com.example.dinoroar.ui.common.ElegantFilterChip(
+                                text = "未拥有",
                                 selected = onlyUnowned,
-                                onClick = { onlyUnowned = !onlyUnowned },
-                                label = {
-                                    Text(
-                                        text = if (onlyUnowned) "✓ 未拥有" else "未拥有",
-                                        fontSize = 11.sp,
-                                        fontWeight = if (onlyUnowned) FontWeight.Bold else FontWeight.Normal,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                },
-                                shape = RoundedCornerShape(50),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = neonGreen.copy(alpha = 0.2f),
-                                    selectedLabelColor = neonGreen,
-                                    containerColor = Color.Transparent,
-                                    labelColor = textSecondary
-                                ),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (onlyUnowned) neonGreen else textSecondary.copy(alpha = 0.3f)
-                                ),
-
-                                modifier = Modifier.height(30.dp)
+                                onToggle = { onlyUnowned = !onlyUnowned }
                             )
 
                             Row(verticalAlignment = Alignment.CenterVertically) {

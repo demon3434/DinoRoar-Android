@@ -57,27 +57,11 @@ fun HandcraftShopMenuScreen(
             .background(darkBg)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
-        Text(
-            text = "🛍️ 欢迎光临手账商城",
-            color = neonAmber,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "积攒写日记奖励的蛋能量，在这里兑换各种装扮吧",
-            color = textSecondary,
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            textAlign = TextAlign.Center
-        )
+        Spacer(modifier = Modifier.height(12.dp))
 
         if (activePromos.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(16.dp))
             val promo = activePromos.first()
             val rulesText = if (promo.rules_summary.isNotEmpty()) {
                 "（${promo.rules_summary.joinToString("，")}）"
@@ -120,8 +104,6 @@ fun HandcraftShopMenuScreen(
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-        } else {
-            Spacer(modifier = Modifier.height(36.dp))
         }
 
 

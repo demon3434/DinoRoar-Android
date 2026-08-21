@@ -4,8 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +38,7 @@ fun MainDrawerContent(
     modifier: Modifier = Modifier
 ) {
     val appColors = LocalAppColors.current
+    var showCheckInRuleDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -44,9 +47,11 @@ fun MainDrawerContent(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            // 用户昵称与蛋能量 / 签到按钮区域
+            // 顶部用户信息卡片 (昵称 + 蛋能量 + 签到按钮)
             Column(
-                modifier = Modifier.padding(vertical = 24.dp, horizontal = 12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
             ) {
                 Text(
                     text = "🦖 $nickName 🦕",
@@ -58,7 +63,7 @@ fun MainDrawerContent(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 蛋能量 (左) 与 签到按钮 (右) 横向排布
+                // 蛋能量 (左) 与 签到按钮 + 规则问号 (右) 横向排布
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -80,26 +85,44 @@ fun MainDrawerContent(
                         )
                     }
 
-                    val hasCheckedIn = checkInStatus?.has_checked_in_today == true
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (hasCheckedIn) appColors.neonGreen.copy(alpha = 0.12f) else appColors.neonGreen,
-                        border = BorderStroke(1.dp, if (hasCheckedIn) appColors.neonGreen.copy(alpha = 0.35f) else appColors.neonGreen),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable(enabled = !hasCheckedIn && !isCheckingIn) {
-                                onCheckInClick()
-                            }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        val hasCheckedIn = checkInStatus?.has_checked_in_today == true
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (hasCheckedIn) appColors.neonGreen.copy(alpha = 0.12f) else appColors.neonGreen,
+                            border = BorderStroke(1.dp, if (hasCheckedIn) appColors.neonGreen.copy(alpha = 0.35f) else appColors.neonGreen),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable(enabled = !hasCheckedIn && !isCheckingIn) {
+                                    onCheckInClick()
+                                }
                         ) {
-                            Text(
-                                text = if (isCheckingIn) "⏳ 签到中" else if (hasCheckedIn) "✅ 已签" else "🥚 签到",
-                                color = if (hasCheckedIn) appColors.neonGreen else Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (isCheckingIn) "⏳ 签到中" else if (hasCheckedIn) "✅ 已签" else "🥚 签到",
+                                    color = if (hasCheckedIn) appColors.neonGreen else Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // 签到规则说明小问号
+                        IconButton(
+                            onClick = { showCheckInRuleDialog = true },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HelpOutline,
+                                contentDescription = "签到规则",
+                                tint = appColors.textSecondary.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
@@ -185,5 +208,12 @@ fun MainDrawerContent(
             )
             Spacer(modifier = Modifier.height(24.dp))
         }
+
+        if (showCheckInRuleDialog) {
+            CheckInRuleDialog(
+                onDismiss = { showCheckInRuleDialog = false }
+            )
+        }
     }
 }
+
