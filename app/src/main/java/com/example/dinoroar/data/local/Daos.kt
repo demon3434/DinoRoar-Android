@@ -93,6 +93,9 @@ interface AttachmentDao {
 
     @Query("UPDATE attachments SET isSynced = 1 WHERE uuid = :uuid")
     suspend fun markSynced(uuid: String)
+
+    @Query("UPDATE attachments SET isSynced = 1, remoteUrl = :remoteUrl WHERE uuid = :uuid")
+    suspend fun markSyncedWithRemoteUrl(uuid: String, remoteUrl: String)
 }
 
 @Dao

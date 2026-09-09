@@ -24,8 +24,9 @@ class RelationshipSyncer @Inject constructor(
 ) {
     private val TAG = "RelationshipSyncer"
 
-    suspend fun syncRelationship() = withContext(Dispatchers.IO) {
+    suspend fun syncRelationship(): Boolean = withContext(Dispatchers.IO) {
         val userId = securePrefs.currentUserId
+        var isSuccess = true
         // ==================== 阶段〇：同步关系人分类库 ====================
         Log.i(TAG, "Syncing person categories for user $userId...")
         val unsyncedCategories = personDao.getUnsyncedCategories(userId)
@@ -49,8 +50,8 @@ class RelationshipSyncer @Inject constructor(
             }
 
             // 将云端最新分类写入本地
-            activeServerCategories.forEach { serverCat ->
-                val categoryEntity = PersonCategoryEntity(
+            val categoryEntities = activeServerCategories.map { serverCat ->
+                PersonCategoryEntity(
                     uuid = serverCat.uuid,
                     userId = userId,
                     name = serverCat.name,
@@ -59,20 +60,20 @@ class RelationshipSyncer @Inject constructor(
                     isDeleted = serverCat.is_deleted,
                     isSynced = true
                 )
-                personDao.insertOrUpdateCategory(categoryEntity)
             }
+            personDao.insertOrUpdateCategories(categoryEntities)
             
             // 逻辑同步：如果本地处于已同步且活跃状态但不在云端分类里，在本地将其置为已逻辑删除
             val serverCategoryUuids = activeServerCategories.map { it.uuid }.toSet()
             val currentLocalCats = personDao.getAllCategories(userId)
-            currentLocalCats.forEach { localCat ->
-                if (localCat.isSynced && !serverCategoryUuids.contains(localCat.uuid)) {
-                    personDao.insertOrUpdateCategory(localCat.copy(isDeleted = true, isSynced = true, userId = userId))
-                }
+            val toDeleteCategories = currentLocalCats.filter { it.isSynced && !serverCategoryUuids.contains(it.uuid) }
+                .map { it.copy(isDeleted = true, isSynced = true, userId = userId) }
+            if (toDeleteCategories.isNotEmpty()) {
+                personDao.insertOrUpdateCategories(toDeleteCategories)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Category synchronization failed: ${e.message}", e)
-            throw e
+            Log.e(TAG, "Category synchronization failed gracefully: ${e.message}", e)
+            isSuccess = false
         }
 
         // ==================== 阶段一：同步关系人物库 ====================
@@ -103,8 +104,8 @@ class RelationshipSyncer @Inject constructor(
             }
             
             // 将服务器下发的人物更新/插入本地
-            activeServerPersons.forEach { serverPerson ->
-                val personEntity = PersonEntity(
+            val personEntities = activeServerPersons.map { serverPerson ->
+                PersonEntity(
                     uuid = serverPerson.uuid,
                     userId = userId,
                     name = serverPerson.name,
@@ -118,20 +119,21 @@ class RelationshipSyncer @Inject constructor(
                     isDeleted = serverPerson.is_deleted,
                     isSynced = true
                 )
-                personDao.insertOrUpdate(personEntity)
             }
+            personDao.insertOrUpdateAll(personEntities)
 
             // 逻辑同步：若本地是活跃状态且已同步，但不在云端活跃人物列表中，我们将其设为已删除
             val serverPersonUuids = activeServerPersons.map { it.uuid }.toSet()
             val allLocalPersons = personDao.getAllActivePersons(userId)
-            allLocalPersons.forEach { localPerson ->
-                if (localPerson.isSynced && !serverPersonUuids.contains(localPerson.uuid)) {
-                    personDao.insertOrUpdate(localPerson.copy(isDeleted = true, isSynced = true))
-                }
+            val toDeletePersons = allLocalPersons.filter { it.isSynced && !serverPersonUuids.contains(it.uuid) }
+                .map { it.copy(isDeleted = true, isSynced = true) }
+            if (toDeletePersons.isNotEmpty()) {
+                personDao.insertOrUpdateAll(toDeletePersons)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Person synchronization failed: ${e.message}", e)
-            throw e
+            Log.e(TAG, "Person synchronization failed gracefully: ${e.message}", e)
+            isSuccess = false
         }
+        return@withContext isSuccess
     }
 }

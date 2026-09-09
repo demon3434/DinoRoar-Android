@@ -25,6 +25,10 @@ import androidx.work.BackoffPolicy
 import androidx.work.WorkRequest
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.Request
 
@@ -50,11 +54,57 @@ class SyncManager @Inject constructor(
     private val TAG = "SyncManager"
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
+    private data class SyncRequest(
+        val isManual: Boolean,
+        val deferred: CompletableDeferred<SyncState>
+    )
+
+    private val triggerChannel = Channel<Unit>(Channel.CONFLATED)
+    private val pendingRequests = mutableListOf<SyncRequest>()
+    private val requestLock = Any()
+    private var idleResetJob: Job? = null
+
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
     init {
         registerNetworkCallback()
+        startSyncConsumer()
+    }
+
+    private fun startSyncConsumer() {
+        coroutineScope.launch {
+            for (signal in triggerChannel) {
+                while (true) {
+                    val batch = synchronized(requestLock) {
+                        if (pendingRequests.isEmpty()) {
+                            null
+                        } else {
+                            val list = ArrayList(pendingRequests)
+                            pendingRequests.clear()
+                            list
+                        }
+                    } ?: break
+
+                    val isManual = batch.any { it.isManual }
+                    val result = try {
+                        doSyncPipeline(isManual)
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Fatal error in sync consumer pipeline: ${t.message}", t)
+                        val err = SyncState.Error("同步遇到未预期异常: ${t.message ?: "未知错误"}")
+                        _syncState.value = err
+                        err
+                    }
+                    for (req in batch) {
+                        try {
+                            req.deferred.complete(result)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to notify caller deferred: ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun registerNetworkCallback() {
@@ -69,7 +119,6 @@ class SyncManager @Inject constructor(
                     Log.i(TAG, "Network restored (onAvailable). Triggering auto-sync for lock pattern and user data...")
                     coroutineScope.launch {
                         try {
-                            syncUserProfile()
                             sync()
                         } catch (e: Exception) {
                             Log.w(TAG, "Auto-sync on network restored failed: ${e.message}")
@@ -159,7 +208,8 @@ class SyncManager @Inject constructor(
                                         Log.i(TAG, "Switching active serverUrl to working URL: $baseUrl")
                                         securePrefs.serverUrl = baseUrl
                                     }
-                                    if (remotePattern != securePrefs.lockPattern) {
+                                    val isPatternChanged = remotePattern != securePrefs.lockPattern
+                                    if (isPatternChanged) {
                                         Log.i(TAG, "Lock pattern updated remotely: $remotePattern (was ${securePrefs.lockPattern})")
                                         securePrefs.lockPattern = remotePattern
                                         securePrefs.lockVersion = securePrefs.lockVersion + 1
@@ -174,7 +224,7 @@ class SyncManager @Inject constructor(
                                         }
                                     }
 
-                                    return@withContext (remotePattern != securePrefs.lockPattern)
+                                    return@withContext isPatternChanged
                                 }
                             }
                         }
@@ -187,17 +237,36 @@ class SyncManager @Inject constructor(
         return@withContext false
     }
 
-    suspend fun sync(isManual: Boolean = false): SyncState = withContext(Dispatchers.IO) {
+    /**
+     * 外部调用的统一同步入口：非阻塞发起、零竞态、绝对不丢更新
+     * 所有并发触发自动合并批处理，每个调用方准确挂起等待当前批次执行完成并返回终态
+     */
+    suspend fun sync(isManual: Boolean = false): SyncState {
+        val deferred = CompletableDeferred<SyncState>()
+        synchronized(requestLock) {
+            pendingRequests.add(SyncRequest(isManual, deferred))
+        }
+        triggerChannel.trySend(Unit)
+        return deferred.await()
+    }
+
+    private suspend fun doSyncPipeline(isManual: Boolean): SyncState = withContext(Dispatchers.IO) {
+        idleResetJob?.cancel()
+
         if (securePrefs.token == null) {
             val err = "Cannot sync: User not authenticated."
             Log.e(TAG, err)
-            return@withContext SyncState.Error(err)
+            val errState = SyncState.Error(err)
+            _syncState.value = errState
+            return@withContext errState
         }
 
         if (!isNetworkConnected()) {
             val err = "No network connection. Sync queued."
             Log.w(TAG, err)
-            return@withContext SyncState.Error(err)
+            val errState = SyncState.Error(err)
+            _syncState.value = errState
+            return@withContext errState
         }
 
         _syncState.value = SyncState.Syncing
@@ -208,25 +277,44 @@ class SyncManager @Inject constructor(
             syncDinoConfig()
             stickerAssetSyncer.syncStickerInventoryDown()
 
-            // 阶段1：关系人/分类同步
+            // 阶段1：关系人/分类同步（优雅降级内部消化，不腰斩主干数据）
             relationshipSyncer.syncRelationship()
 
-            // 阶段2：日志同步
+            // 阶段2：日志同步（受 Room withTransaction 事务保护）
             diaryLogSyncer.syncLogs(isManual)
 
             // 阶段3：附件物理文件上传与MD5秒传同步
-            attachmentFileSyncer.syncAttachments(isManual)
+            val attachmentResult = attachmentFileSyncer.syncAttachments(isManual)
 
             // 阶段4：贴纸与蛋能量库存资产同步上报
             stickerAssetSyncer.syncStickerInventoryUp()
 
+            if (!attachmentResult.isAllSuccess) {
+                val partialErrMsg = "日记已同步，但有 ${attachmentResult.failedCount} 个多媒体附件未能上传"
+                Log.w(TAG, partialErrMsg)
+                val partialErrState = SyncState.Error(partialErrMsg)
+                _syncState.value = partialErrState
+                return@withContext partialErrState
+            }
+
             _syncState.value = SyncState.Success
+
+            // 成功后 3 秒自动平滑复位为 Idle 状态
+            idleResetJob?.cancel()
+            idleResetJob = coroutineScope.launch {
+                delay(3000)
+                if (_syncState.value is SyncState.Success) {
+                    _syncState.value = SyncState.Idle
+                }
+            }
+
             SyncState.Success
         } catch (e: Exception) {
             val errMsg = "Sync exception: ${e.message ?: "Unknown error"}"
             Log.e(TAG, errMsg, e)
-            _syncState.value = SyncState.Error(errMsg)
-            SyncState.Error(errMsg)
+            val errState = SyncState.Error(errMsg)
+            _syncState.value = errState
+            errState
         }
     }
 
@@ -248,11 +336,22 @@ class SyncManager @Inject constructor(
             WorkManager.getInstance(context)
                 .enqueueUniqueWork(
                     "DinoRoarSyncWork",
-                    ExistingWorkPolicy.REPLACE,
+                    ExistingWorkPolicy.KEEP,
                     syncWorkRequest
                 )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to schedule background sync with WorkManager: ${e.message}", e)
         }
+    }
+
+    fun isOnline(): Boolean {
+        return isNetworkConnected() && securePrefs.token != null
+    }
+
+    /**
+     * 单篇日记云端强制预拉取代理（Fetch-Before-Edit 机制）
+     */
+    suspend fun refreshSingleLog(uuid: String): Boolean {
+        return diaryLogSyncer.fetchAndPersistLatestLog(uuid)
     }
 }

@@ -56,7 +56,6 @@ fun DiaryLogCard(
     val log = logWithConfig.log
     val dinoConfig = logWithConfig.dinoConfig
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    var showConflictResolveDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val securePrefs = remember { SecurePrefs(context) }
@@ -135,15 +134,6 @@ fun DiaryLogCard(
                         modifier = Modifier.weight(1f)
                     ) {
                         when {
-                            log.isConflict -> {
-                                Text(
-                                    text = "☁️❗️ 基地有新记忆，需要整理 🔍",
-                                    color = neonRed,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
                             log.isSynced -> {
                                 Text(
                                     text = "☁️✨ 已安全存入基地 🦕",
@@ -442,28 +432,6 @@ fun DiaryLogCard(
                         }
                     }
                 }
-            }
-
-            if (log.isConflict) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Button(
-                    onClick = { showConflictResolveDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = neonRed),
-                    modifier = Modifier.fillMaxWidth().height(42.dp)
-                ) {
-                    Text("🔍 整理与秘密基地的冲突记忆", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            // 冲突解决整理 Dialog（已解耦至独立组件 ConflictResolutionDialog.kt）
-            if (log.isConflict && showConflictResolveDialog) {
-                ConflictResolutionDialog(
-                    log = log,
-                    coroutineScope = coroutineScope,
-                    repository = repository,
-                    syncManager = syncManager,
-                    onDismiss = { showConflictResolveDialog = false }
-                )
             }
         }
     }

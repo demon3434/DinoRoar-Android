@@ -180,6 +180,11 @@ interface DinoApiService {
         @Body payload: LogSyncPayload
     ): List<LogResponse>
 
+    @GET("api/logs/detail/{uuid}")
+    suspend fun getLogDetail(
+        @Path("uuid") uuid: String
+    ): LogResponse
+
     @POST("api/persons/sync")
     suspend fun syncPersons(
         @Body payload: PersonSyncPayload

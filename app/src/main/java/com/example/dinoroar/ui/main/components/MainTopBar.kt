@@ -172,13 +172,30 @@ fun MainTopBar(
                 }
             }
 
-            // 手动同步按钮
-            IconButton(onClick = onSyncClick) {
-                Icon(
-                    imageVector = Icons.Default.Cloud,
-                    contentDescription = "Sync",
-                    tint = if (syncState is SyncState.Syncing) appColors.neonBlue else appColors.neonAmber
-                )
+            // 手动同步按钮 (同步中转圈并禁用重复点击，完成后恢复稳定云朵)
+            val isSyncing = syncState is SyncState.Syncing
+            IconButton(
+                onClick = onSyncClick,
+                enabled = !isSyncing
+            ) {
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = appColors.neonBlue
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Cloud,
+                            contentDescription = "Sync",
+                            tint = appColors.neonAmber
+                        )
+                    }
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = appColors.darkBg)

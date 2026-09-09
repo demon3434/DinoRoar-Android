@@ -31,6 +31,9 @@ class SyncWorker(
             val state = syncManager.sync()
             if (state is SyncState.Success) {
                 Result.success()
+            } else if (state is SyncState.Error && state.error.contains("User not authenticated")) {
+                Log.w("SyncWorker", "Background sync cancelled: user not authenticated.")
+                Result.failure()
             } else {
                 Log.w("SyncWorker", "Background sync state failed: $state")
                 Result.retry()

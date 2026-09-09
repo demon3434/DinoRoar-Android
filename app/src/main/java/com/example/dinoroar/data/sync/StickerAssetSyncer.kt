@@ -80,7 +80,6 @@ class StickerAssetSyncer @Inject constructor(
 
     suspend fun syncStickerInventoryUp() = withContext(Dispatchers.IO) {
         try {
-            syncStickerConfigDown()
             val serverAsset = apiService.getStickerInventory()
             securePrefs.stickerInventory = serverAsset.sticker_inventory
             securePrefs.eggEnergy = serverAsset.egg_energy

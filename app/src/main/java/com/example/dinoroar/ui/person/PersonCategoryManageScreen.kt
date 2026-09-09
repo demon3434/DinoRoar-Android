@@ -31,6 +31,7 @@ import com.example.dinoroar.data.DataRepository
 import com.example.dinoroar.data.local.PersonCategoryEntity
 import com.example.dinoroar.data.local.PersonEntity
 import com.example.dinoroar.data.sync.SyncManager
+import com.example.dinoroar.data.sync.SyncState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -71,8 +72,9 @@ fun PersonCategoryManageScreen(
     var categoryToRestore by remember { mutableStateOf<PersonCategoryEntity?>(null) }
     var personToRestore by remember { mutableStateOf<PersonEntity?>(null) }
 
-    var isReorderMode by remember { mutableStateOf(false) } 
-    var isSyncing by remember { mutableStateOf(false) }
+    var isReorderMode by remember { mutableStateOf(false) }
+    val syncState by syncManager.syncState.collectAsStateWithLifecycle()
+    val isSyncing = syncState is SyncState.Syncing
 
     // Temporary lists fold state
     var isTempListExpanded by remember { mutableStateOf(false) }
@@ -101,29 +103,41 @@ fun PersonCategoryManageScreen(
                     }
                 },
                 actions = {
-                    // Pull / Sync from cloud button
-                    if (isSyncing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                    } else {
-                        IconButton(onClick = {
+                    // Pull / Sync from cloud button (防假阳性与全局状态联动)
+                    IconButton(
+                        onClick = {
                             coroutineScope.launch {
-                                isSyncing = true
-                                try {
-                                    syncManager.sync(isManual = true)
-                                    Toast.makeText(context, "云端拉取同步成功！", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "同步失败: ${e.message}", Toast.LENGTH_LONG).show()
-                                } finally {
-                                    isSyncing = false
+                                val result = syncManager.sync(isManual = true)
+                                when (result) {
+                                    is SyncState.Success -> {
+                                        Toast.makeText(context, "云端拉取同步成功！", Toast.LENGTH_SHORT).show()
+                                    }
+                                    is SyncState.Error -> {
+                                        Toast.makeText(context, "同步失败: ${result.error}", Toast.LENGTH_LONG).show()
+                                    }
+                                    else -> {}
                                 }
                             }
-                        }) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "云端拉取同步", tint = MaterialTheme.colorScheme.primary)
+                        },
+                        enabled = !isSyncing
+                    ) {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "云端拉取同步",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                     IconButton(onClick = { isReorderMode = !isReorderMode }) {

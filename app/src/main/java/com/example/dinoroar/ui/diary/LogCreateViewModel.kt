@@ -79,6 +79,7 @@ class LogCreateViewModel(
 
     // 3. 阻塞/加载状态
     var isCompressing by mutableStateOf(false)
+    var isRefreshingRemote by mutableStateOf(false)
 
     init {
         // 初始化贴纸缓存并拉取最新配置
@@ -129,6 +130,18 @@ class LogCreateViewModel(
 
         viewModelScope.launch {
             try {
+                // 0. Fetch-Before-Edit: 编辑既有日记时，若在线必须先从服务端拉取最新数据写入 Room，绝不在旧缓存上修改
+                if (editingLogUuid != null && syncManager.isOnline()) {
+                    isRefreshingRemote = true
+                    try {
+                        syncManager.refreshSingleLog(editingLogUuid)
+                    } catch (e: Exception) {
+                        Log.w("LogCreateViewModel", "Fetch-Before-Edit prefetch failed, will fallback to local: ${e.message}")
+                    } finally {
+                        isRefreshingRemote = false
+                    }
+                }
+
                 // 1. 记忆或恢复背景画布逻辑
                 if (editingLogUuid != null) {
                     val logCanvas = repository.getLogCanvasByUuid(editingLogUuid)
@@ -605,6 +618,7 @@ class LogCreateViewModel(
         canvasImageUrl = null
         initialStickerIds.clear()
         isCompressing = false
+        isRefreshingRemote = false
         editingLogUuid = null
     }
 
