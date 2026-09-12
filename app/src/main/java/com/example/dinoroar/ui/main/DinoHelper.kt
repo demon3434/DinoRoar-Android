@@ -62,6 +62,25 @@ fun getDinoResource(moodId: Int): Int {
     }
 }
 
+fun getDinoResourceByLegacyKey(legacyKey: String?): Int? {
+    if (legacyKey.isNullOrBlank()) return null
+    return when (legacyKey.lowercase(java.util.Locale.US).replace("-", "_")) {
+        "triceratops" -> com.example.dinoroar.R.drawable.mood_triceratops
+        "pterodactyl_happy" -> com.example.dinoroar.R.drawable.mood_pterodactyl_happy
+        "t_rex_proud" -> com.example.dinoroar.R.drawable.mood_t_rex_proud
+        "brachiosaurus" -> com.example.dinoroar.R.drawable.mood_brachiosaurus
+        "stegosaurus" -> com.example.dinoroar.R.drawable.mood_stegosaurus
+        "velociraptor" -> com.example.dinoroar.R.drawable.mood_velociraptor
+        "ankylosaurus_scared" -> com.example.dinoroar.R.drawable.mood_ankylosaurus_scared
+        "pachycephalosaurus" -> com.example.dinoroar.R.drawable.mood_pachycephalosaurus
+        "parasaurolophus_regret" -> com.example.dinoroar.R.drawable.mood_parasaurolophus_regret
+        "spinosaurus" -> com.example.dinoroar.R.drawable.mood_spinosaurus
+        "dilophosaurus" -> com.example.dinoroar.R.drawable.mood_dilophosaurus
+        else -> null
+    }
+}
+
+
 fun getDinoName(moodId: Int): String {
     return when (moodId) {
         1 -> "快乐三角龙"

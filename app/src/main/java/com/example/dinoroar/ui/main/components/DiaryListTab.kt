@@ -42,6 +42,9 @@ import kotlinx.coroutines.delay
 fun DiaryListTab(
     filteredLogs: List<com.example.dinoroar.data.local.LogWithConfig>,
     logPersonMap: Map<String, List<PersonEntity>>,
+    logAttachmentsMap: Map<String, List<AttachmentEntity>> = emptyMap(),
+    stickerConfigMap: Map<String, String> = emptyMap(),
+    serverBaseUrl: String = "",
     allPersons: List<PersonEntity>,
     allCategories: List<PersonCategoryEntity>,
     allDinoConfigs: List<DinoConfigEntity>,
@@ -75,17 +78,11 @@ fun DiaryListTab(
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showFilterBottomSheet by rememberSaveable { mutableStateOf(false) }
-    var pageSize by remember { mutableStateOf(10) }
 
     // 防抖搜索
     LaunchedEffect(searchQuery) {
         delay(300)
         onSearchQueryChange(searchQuery)
-    }
-
-    // 重置分页
-    LaunchedEffect(searchQuery, selectedFilterPersonUuids, selectedFilterMonths, selectedFilterMoods) {
-        pageSize = 10
     }
 
     val isFilterActive = selectedFilterPersonUuids.isNotEmpty() || selectedFilterMonths.isNotEmpty() || selectedFilterMoods.isNotEmpty()
@@ -326,19 +323,14 @@ fun DiaryListTab(
                     }
                 }
             } else {
-                val paginatedLogs = filteredLogs.take(pageSize)
-                items(paginatedLogs) { logWithConfig ->
+                items(
+                    items = filteredLogs,
+                    key = { it.log.uuid }
+                ) { logWithConfig ->
                     val log = logWithConfig.log
-                    var attachments by remember { mutableStateOf<List<AttachmentEntity>>(emptyList()) }
-                    LaunchedEffect(log.uuid) {
-                        repository.getAttachmentsForLogFlow(log.uuid).collect {
-                            attachments = it
-                        }
-                    }
-
                     DiaryLogCard(
                         logWithConfig = logWithConfig,
-                        attachments = attachments,
+                        attachments = logAttachmentsMap[log.uuid] ?: emptyList(),
                         associatedPersons = logPersonMap[log.uuid] ?: emptyList(),
                         onDelete = {
                             onDeleteLog(log.uuid)
@@ -349,29 +341,11 @@ fun DiaryListTab(
                         onCardClick = {
                             onNavigateToDetail(log.uuid)
                         },
+                        stickerConfigMap = stickerConfigMap,
+                        serverBaseUrl = serverBaseUrl,
                         repository = repository,
                         syncManager = syncManager
                     )
-                }
-
-                if (filteredLogs.size > pageSize) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = neonBlue,
-                                strokeWidth = 2.dp
-                            )
-                        }
-                        LaunchedEffect(Unit) {
-                            pageSize += 10
-                        }
-                    }
                 }
             }
 

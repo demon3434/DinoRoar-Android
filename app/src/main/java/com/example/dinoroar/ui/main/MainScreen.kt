@@ -49,7 +49,7 @@ fun MainScreen(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = androidx.lifecycle.viewmodel.compose.viewModel {
-        MainScreenViewModel(repository)
+        MainScreenViewModel(repository, securePrefs)
     }
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -63,6 +63,8 @@ fun MainScreen(
     val allPersons by viewModel.allPersons.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val logPersonMap by viewModel.logPersonMap.collectAsStateWithLifecycle()
+    val logAttachmentsMap by viewModel.logAttachmentsMap.collectAsStateWithLifecycle()
+    val stickerConfigMap by viewModel.stickerConfigMap.collectAsStateWithLifecycle()
     val filteredLogs by viewModel.filteredLogs.collectAsStateWithLifecycle()
     val availableMonths by viewModel.availableMonths.collectAsStateWithLifecycle()
     val sortedPersonsForFilter by viewModel.sortedPersonsForFilter.collectAsStateWithLifecycle()
@@ -288,6 +290,9 @@ fun MainScreen(
                         DiaryListTab(
                             filteredLogs = filteredLogs,
                             logPersonMap = logPersonMap,
+                            logAttachmentsMap = logAttachmentsMap,
+                            stickerConfigMap = stickerConfigMap,
+                            serverBaseUrl = viewModel.serverBaseUrl,
                             allPersons = allPersons,
                             allCategories = allCategories,
                             allDinoConfigs = allDinoConfigs,

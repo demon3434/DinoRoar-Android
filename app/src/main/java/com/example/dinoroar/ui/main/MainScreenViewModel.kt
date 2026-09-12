@@ -16,7 +16,8 @@ import java.time.temporal.TemporalAdjusters
 
 
 class MainScreenViewModel(
-    private val repository: DataRepository
+    private val repository: DataRepository,
+    private val securePrefs: com.example.dinoroar.data.local.SecurePrefs? = null
 ) : ViewModel() {
 
     // 1. 过滤和检索状态的 Flow
@@ -42,6 +43,36 @@ class MainScreenViewModel(
             log.uuid to persons
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    // 3.1 伴随状态：logAttachmentsMap (按 logUuid 预聚合未删除的附件映射，供列表 O(1) 取用)
+    val logAttachmentsMap: StateFlow<Map<String, List<AttachmentEntity>>> = allAttachments.map { list ->
+        list.filter { !it.isDeleted && !it.logUuid.isNullOrBlank() }.groupBy { it.logUuid!! }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    // 3.2 贴纸配置映射与服务器基准 URL (避免卡片内重复反序列化)
+    private val _stickerConfigMap = MutableStateFlow(parseStickerConfig(securePrefs?.stickerConfigCache.orEmpty()))
+    val stickerConfigMap: StateFlow<Map<String, String>> = _stickerConfigMap.asStateFlow()
+    val serverBaseUrl: String = securePrefs?.serverUrl?.removeSuffix("/").orEmpty()
+
+    fun refreshStickerConfig() {
+        _stickerConfigMap.value = parseStickerConfig(securePrefs?.stickerConfigCache.orEmpty())
+    }
+
+    private companion object {
+        fun parseStickerConfig(cacheStr: String): Map<String, String> {
+            if (cacheStr.isBlank()) return emptyMap()
+            val map = mutableMapOf<String, String>()
+            cacheStr.split(",").filter { it.isNotBlank() }.forEach { item ->
+                val parts = item.split(":")
+                if (parts.size >= 2) {
+                    val id = parts[0].trim()
+                    val url = parts.subList(1, parts.size).joinToString(":")
+                    map[id] = url
+                }
+            }
+            return map
+        }
+    }
 
     private data class LogFilters(
         val persons: Set<String>,

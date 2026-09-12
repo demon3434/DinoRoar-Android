@@ -6,8 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -41,6 +39,11 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 
+import com.example.dinoroar.ui.main.getDinoResourceByLegacyKey
+
+private val STICKER_PATTERN = java.util.regex.Pattern.compile("\\[sticker:([^:]+):[^\\]]+\\]")
+private val STICKER_CLEAN_REGEX = Regex("\\[sticker:[^\\]]+\\]")
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DiaryLogCard(
@@ -50,46 +53,26 @@ fun DiaryLogCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onCardClick: () -> Unit,
-    repository: DataRepository,
-    syncManager: SyncManager
+    stickerConfigMap: Map<String, String> = emptyMap(),
+    serverBaseUrl: String = "",
+    repository: DataRepository? = null,
+    syncManager: SyncManager? = null
 ) {
     val log = logWithConfig.log
     val dinoConfig = logWithConfig.dinoConfig
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val securePrefs = remember { SecurePrefs(context) }
 
-    val configMap = remember(securePrefs.stickerConfigCache) {
-        val map = mutableMapOf<String, String>()
-        securePrefs.stickerConfigCache.split(",").filter { it.isNotBlank() }.forEach { item ->
-            val parts = item.split(":")
-            if (parts.size >= 2) {
-                val id = parts[0].trim()
-                val url = parts.subList(1, parts.size).joinToString(":")
-                map[id] = url
-            }
-        }
-        map
-    }
-    val serverBaseUrl = remember { securePrefs.serverUrl?.removeSuffix("/") ?: "" }
+    val configMap = stickerConfigMap
 
     val dinoResId = remember(dinoConfig, log.moodDinoId) {
-        if (dinoConfig != null) {
-            val resourceName = "mood_" + dinoConfig.legacyKey.lowercase(java.util.Locale.US)
-            val resId = context.resources.getIdentifier(resourceName, "drawable", context.packageName)
-            if (resId != 0) resId else getDinoResource(log.moodDinoId)
-        } else {
-            getDinoResource(log.moodDinoId)
-        }
+        getDinoResourceByLegacyKey(dinoConfig?.legacyKey) ?: getDinoResource(log.moodDinoId)
     }
     val dinoName = dinoConfig?.name ?: getDinoName(log.moodDinoId)
     val dinoMood = dinoConfig?.moodLabel ?: getDinoMoodLabel(log.moodDinoId)
 
     val stickers = remember(log.content) {
         val list = mutableListOf<String>()
-        val pattern = java.util.regex.Pattern.compile("\\[sticker:([^:]+):[^\\]]+\\]")
-        val matcher = pattern.matcher(log.content)
+        val matcher = STICKER_PATTERN.matcher(log.content)
         while (matcher.find()) {
             val dinoId = matcher.group(1)
             if (dinoId != null) {
@@ -100,7 +83,7 @@ fun DiaryLogCard(
     }
 
     val cleanContent = remember(log.content) {
-        log.content.replace(Regex("\\[sticker:[^\\]]+\\]"), "").trim()
+        log.content.replace(STICKER_CLEAN_REGEX, "").trim()
     }
 
     val appColors = LocalAppColors.current
@@ -271,14 +254,14 @@ fun DiaryLogCard(
 
                 if (stickers.isNotEmpty()) {
                     Spacer(modifier = Modifier.weight(1f))
-                    LazyRow(
+                    Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .height(48.dp)
                             .widthIn(max = 160.dp)
                     ) {
-                        items(stickers) { stickerDinoId ->
+                        stickers.forEach { stickerDinoId ->
                             val finalStickerId = stickerDinoId.trim()
                             val fallbackResId = com.example.dinoroar.R.drawable.sticker_fallback_logo
                             val imgUrl = configMap[finalStickerId]
